@@ -10,6 +10,9 @@ project(level-synth
 # Set the C++ standard
 set(CMAKE_CXX_STANDARD 20)
 
+# Set the build shared libraries
+set(BUILD_SHARED_LIBS OFF)
+
 # Add SDL3 support
 add_subdirectory(external/sdl EXCLUDE_FROM_ALL)
 
