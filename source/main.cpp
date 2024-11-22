@@ -21,6 +21,8 @@
 #include <SDL3/SDL_opengl.h>
 #endif
 
+#include "ImNodeFlow.h"
+
 // Main code
 int main(int, char**)
 {
@@ -86,6 +88,8 @@ int main(int, char**)
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+    ImFlow::ImNodeFlow nodeFlow("Node Editor");
+
     // Main loop
     bool done = false;
 #ifdef __EMSCRIPTEN__
@@ -125,6 +129,12 @@ int main(int, char**)
         // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
+
+        if(ImGui::Begin("Node Flow"))
+        {
+            nodeFlow.update();
+            ImGui::End();
+        }
 
         // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
         {

@@ -23,7 +23,8 @@ add_executable(level-synth source/main.cpp)
 target_include_directories(level-synth
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/SDL/include
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui
-        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui/backends)
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui/backends
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/ImNodeFlow/include)
 
 # ImGui does not come with a CMakeLists.txt file, so we have to add the source files manually as a library
 add_library(imgui STATIC
