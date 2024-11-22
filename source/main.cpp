@@ -23,6 +23,45 @@
 
 #include "ImNodeFlow.h"
 
+using namespace ImFlow;
+
+class SimpleSum : public BaseNode
+{
+public:
+    SimpleSum()
+    {
+        setTitle("Simple sum");
+        setStyle(NodeStyle::cyan());
+        addIN<int>("IN_VAL", 0, ConnectionFilter::SameType());
+        auto pin = addOUT<int>("OUT_VAL", PinStyle::blue());
+        pin->behaviour([this](){ return getInVal<int>("IN_VAL") + m_valB; });
+    }
+
+    void draw() override
+    {
+        ImGui::SetNextItemWidth(100.f);
+        ImGui::InputInt("##ValB", &m_valB);
+    }
+private:
+    int m_valB = 0;
+};
+
+class SimplePrint : public BaseNode
+{
+public:
+    SimplePrint()
+    {
+        setTitle("Simple print");
+        setStyle(NodeStyle::green());
+        addIN<int>("IN_VAL", 0, ConnectionFilter::SameType());
+    }
+
+    void draw() override
+    {
+        ImGui::Text("Value: %d", getInVal<int>("IN_VAL"));
+    }
+};
+
 // Main code
 int main(int, char**)
 {
@@ -59,8 +98,8 @@ int main(int, char**)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
     // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
+    //ImGui::StyleColorsDark();
+    ImGui::StyleColorsLight();
 
     // Setup Platform/Renderer backends
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
@@ -79,7 +118,10 @@ int main(int, char**)
     //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
     //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
     //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
+    ImFontConfig config;
+    config.OversampleH = 8;
+    config.OversampleV = 8;
+    io.Fonts->AddFontFromFileTTF("./resources/selawk.ttf", 19.0f, &config);
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
     //IM_ASSERT(font != nullptr);
 
@@ -89,6 +131,9 @@ int main(int, char**)
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     ImFlow::ImNodeFlow nodeFlow("Node Editor");
+    nodeFlow.addNode<SimpleSum>({0,0});
+    nodeFlow.addNode<SimpleSum>({200,100});
+    nodeFlow.addNode<SimplePrint>({400,200});
 
     // Main loop
     bool done = false;
