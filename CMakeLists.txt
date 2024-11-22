@@ -41,7 +41,18 @@ target_include_directories(imgui
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui/backends)
 
+# Add ImNodeFlow directly as a library
+add_compile_definitions(IMGUI_DEFINE_MATH_OPERATORS)
+add_library(ImNodeFlow STATIC
+        external/ImNodeFlow/src/ImNodeFlow.cpp)
+
+# Add include directories for ImNodeFlow
+target_include_directories(ImNodeFlow
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/ImNodeFlow/include)
+
 # Link to the actual SDL3 library. SDL3::SDL3 is the shared SDL library, SDL2::SDL2-static is the static SDL libarary.
 target_link_libraries(level-synth PRIVATE
         SDL3::SDL3
-        imgui)
+        imgui
+        ImNodeFlow)
