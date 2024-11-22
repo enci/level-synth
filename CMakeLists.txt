@@ -25,8 +25,8 @@ target_include_directories(level-synth
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui/backends)
 
-# ImGui does not come with a CMakeLists.txt file, so we have to add the source files manually.
-target_sources(level-synth PRIVATE
+# ImGui does not come with a CMakeLists.txt file, so we have to add the source files manually as a library
+add_library(imgui STATIC
         external/imgui/imgui.cpp
         external/imgui/imgui_demo.cpp
         external/imgui/imgui_draw.cpp
@@ -35,5 +35,13 @@ target_sources(level-synth PRIVATE
         external/imgui/backends/imgui_impl_sdl3.cpp
         external/imgui/backends/imgui_impl_sdlrenderer3.cpp)
 
+# Add include directories
+target_include_directories(imgui
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/SDL/include
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui/backends)
+
 # Link to the actual SDL3 library. SDL3::SDL3 is the shared SDL library, SDL2::SDL2-static is the static SDL libarary.
-target_link_libraries(level-synth PRIVATE SDL3::SDL3)
+target_link_libraries(level-synth PRIVATE
+        SDL3::SDL3
+        imgui)
