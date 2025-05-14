@@ -3,7 +3,7 @@
 
 int main(int argc, char** argv) {
     try {
-        application app("Game Tool", 1280, 720);
+        application app("Game Tool", 1920, 1080);
         app.run();
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

@@ -24,9 +24,17 @@ FetchContent_MakeAvailable(sdl3)
 FetchContent_Declare(
         imgui
         GIT_REPOSITORY https://github.com/ocornut/imgui.git
-        GIT_TAG master
+        GIT_TAG features/shadows
 )
 FetchContent_MakeAvailable(imgui)
+
+# Fetch ImGui Node Editor
+FetchContent_Declare(
+        imgui_node_editor
+        GIT_REPOSITORY  https://github.com/thedmd/imgui-node-editor.git
+        GIT_TAG master
+)
+FetchContent_MakeAvailable(imgui_node_editor)
 
 # Fetch FreeType
 FetchContent_Declare(
@@ -65,6 +73,19 @@ set(IMGUI_SOURCES
         ${IMGUI_DIR}/imgui_widgets.cpp
 )
 
+# ImGui Node Editor files
+set(IMGUI_NODE_EDITOR_DIR ${imgui_node_editor_SOURCE_DIR})
+set(IMGUI_NODE_EDITOR_SOURCES
+        ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor.cpp
+        ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor.h
+        ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor_internal.h
+        ${IMGUI_NODE_EDITOR_DIR}/crude_json.cpp
+        ${IMGUI_NODE_EDITOR_DIR}/crude_json.h
+        ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor_api.cpp
+        ${IMGUI_NODE_EDITOR_DIR}/imgui_canvas.cpp
+        ${IMGUI_NODE_EDITOR_DIR}/imgui_canvas.h
+)
+
 # ImGui SDL3 backend files
 set(IMGUI_SDL3_SOURCES
         ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
@@ -86,6 +107,7 @@ add_executable(${PROJECT_NAME}
         ${SOURCES}
         ${HEADERS}
         ${IMGUI_SOURCES}
+        ${IMGUI_NODE_EDITOR_SOURCES}
         ${IMGUI_SDL3_SOURCES}
         ${IMGUI_FREETYPE_SOURCES}
 )
@@ -95,6 +117,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
         ${GAME_TOOL_INCLUDE_DIR}
         ${IMGUI_DIR}
         ${IMGUI_DIR}/misc/freetype
+        ${IMGUI_NODE_EDITOR_DIR}
         ${freetype_SOURCE_DIR}/include
 )
 
