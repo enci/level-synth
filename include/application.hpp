@@ -2,14 +2,23 @@
 
 #include <SDL3/SDL.h>
 #include <string>
-#include "imgui.h"
-#include "backends/imgui_impl_sdl3.h"
-#include "backends/imgui_impl_sdlrenderer3.h"
-#include "misc/freetype/imgui_freetype.h"
+#include <vector>
+#include <imgui.h>
+#include <imgui_node_editor.h>
 
 // Ensure we have the correct ImGuiFreeType declarations
 namespace ImGuiFreeType { const ImFontBuilderIO* GetBuilderForFreeType(); }
-namespace ax { namespace NodeEditor { class EditorContext; } }
+
+// Struct to hold basic information about connection between
+// pins. Note that connection (aka. link) has its own ID.
+// This is useful later with dealing with selections, deletion
+// or other operations.
+struct LinkInfo
+{
+    ax::NodeEditor::LinkId Id;
+    ax::NodeEditor::PinId InputId;
+    ax::NodeEditor::PinId OutputId;
+};
 
 class application {
 public:
@@ -26,6 +35,7 @@ private:
     void update();
     void render();
     void cleanup();
+    void node_editor();
 
     void set_light_theme();
     void set_dark_theme();
@@ -40,5 +50,10 @@ private:
     int m_height;
     float m_resolution_scale;
     float m_ui_scale;
+
     ax::NodeEditor::EditorContext* m_node_editor_context;
+    bool m_first_frame = true;
+    std::vector<LinkInfo> m_links;
+    int m_next_link_id = 100; // Counter to help generate link ids. In real application this will probably based on pointer to user data structure.
+
 };

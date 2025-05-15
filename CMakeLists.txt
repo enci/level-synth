@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(game_tool VERSION 0.1.0 LANGUAGES CXX)
+project(level-synth VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -31,7 +31,7 @@ FetchContent_MakeAvailable(imgui)
 # Fetch ImGui Node Editor
 FetchContent_Declare(
         imgui_node_editor
-        GIT_REPOSITORY  https://github.com/thedmd/imgui-node-editor.git
+        GIT_REPOSITORY  https://github.com/enci/imgui-node-editor.git
         GIT_TAG master
 )
 FetchContent_MakeAvailable(imgui_node_editor)
@@ -50,17 +50,17 @@ set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(freetype)
 
 # Project structure
-set(GAME_TOOL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source)
-set(GAME_TOOL_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(LEVEL_SYNTH_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source)
+set(LEVEL_SYNTH_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Create directories if they don't exist
-file(MAKE_DIRECTORY ${GAME_TOOL_SOURCE_DIR})
-file(MAKE_DIRECTORY ${GAME_TOOL_INCLUDE_DIR})
+file(MAKE_DIRECTORY ${LEVEL_SYNTH_SOURCE_DIR})
+file(MAKE_DIRECTORY ${LEVEL_SYNTH_INCLUDE_DIR})
 
 # Set source files
 set(SOURCES
-        ${GAME_TOOL_SOURCE_DIR}/main.cpp
-        ${GAME_TOOL_SOURCE_DIR}/application.cpp
+        ${LEVEL_SYNTH_SOURCE_DIR}/main.cpp
+        ${LEVEL_SYNTH_SOURCE_DIR}/application.cpp
 )
 
 # ImGui files
@@ -99,7 +99,7 @@ set(IMGUI_FREETYPE_SOURCES
 
 # Set header files
 set(HEADERS
-        ${GAME_TOOL_INCLUDE_DIR}/application.hpp
+        ${LEVEL_SYNTH_INCLUDE_DIR}/application.hpp
 )
 
 # Create executable
@@ -114,7 +114,7 @@ add_executable(${PROJECT_NAME}
 
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
-        ${GAME_TOOL_INCLUDE_DIR}
+        ${LEVEL_SYNTH_INCLUDE_DIR}
         ${IMGUI_DIR}
         ${IMGUI_DIR}/misc/freetype
         ${IMGUI_NODE_EDITOR_DIR}
