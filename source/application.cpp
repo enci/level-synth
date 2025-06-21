@@ -161,6 +161,7 @@ void application::update() {
     // Push no border
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
 
     ImGui::Begin("Game Tool", nullptr,
         ImGuiWindowFlags_NoTitleBar |
@@ -343,8 +344,11 @@ void application::node_editor() {
         // End of interaction with editor.
         ed::End();
 
-        if (m_first_frame)
-            ed::NavigateToContent(0.0f);
+    // Show current zoom
+    float z = ed::GetCurrentZoom();
+
+        //if (m_first_frame)
+        //    ed::NavigateToContent(0.0f);
 
         ed::SetCurrentEditor(nullptr);
 

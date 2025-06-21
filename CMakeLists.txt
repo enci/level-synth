@@ -100,6 +100,7 @@ set(IMGUI_FREETYPE_SOURCES
 # Set header files
 set(HEADERS
         ${LEVEL_SYNTH_INCLUDE_DIR}/application.hpp
+        library/level_synth.hpp
 )
 
 # Create executable
