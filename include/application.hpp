@@ -6,10 +6,7 @@
 #include <imgui.h>
 #include <imgui_node_editor.h>
 
-// Ensure we have the correct ImGuiFreeType declarations
-namespace ImGuiFreeType { const ImFontBuilderIO* GetBuilderForFreeType(); }
-
-// Struct to hold basic information about connection between
+// Struct to hold basic information about relation between
 // pins. Note that connection (aka. link) has its own ID.
 // This is useful later with dealing with selections, deletion
 // or other operations.

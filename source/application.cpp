@@ -1,6 +1,8 @@
 #include "application.hpp"
 #include <stdexcept>
 #include <iostream>
+
+#include "imgui_internal.h"
 #include "backends/imgui_impl_sdl3.h"
 #include "backends/imgui_impl_sdlrenderer3.h"
 #include "misc/freetype/imgui_freetype.h"
@@ -88,9 +90,9 @@ void application::init_imgui() {
     ImGui_ImplSDLRenderer3_Init(m_renderer);
 
     // Setup FreeType
-    const ImFontBuilderIO* builder = ImGuiFreeType::GetBuilderForFreeType();
-    io.Fonts->FontBuilderIO = builder;
-    io.Fonts->FontBuilderFlags = ImGuiFreeTypeBuilderFlags_ForceAutoHint;
+    const auto* loader = ImGuiFreeType::GetFontLoader();
+    io.Fonts->SetFontLoader(loader);
+    io.Fonts->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_ForceAutoHint;
 
     // Load additional fonts
     const float ui_scale = m_ui_scale;
