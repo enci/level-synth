@@ -20,7 +20,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(sdl3)
 
-# Fetch ImGui
+# Fetch ImGui (shadows branch for node drop shadows)
 FetchContent_Declare(
         imgui
         GIT_REPOSITORY https://github.com/ocornut/imgui.git
@@ -49,21 +49,13 @@ set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
 set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(freetype)
 
-# Project structure
-set(LEVEL_SYNTH_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/source)
-set(LEVEL_SYNTH_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-# Create directories if they don't exist
-file(MAKE_DIRECTORY ${LEVEL_SYNTH_SOURCE_DIR})
-file(MAKE_DIRECTORY ${LEVEL_SYNTH_INCLUDE_DIR})
-
-# Set source files
-set(SOURCES
-        ${LEVEL_SYNTH_SOURCE_DIR}/main.cpp
-        ${LEVEL_SYNTH_SOURCE_DIR}/application.cpp
+# ---- Library target (header-only for now) ----
+add_library(level_synth_library INTERFACE)
+target_include_directories(level_synth_library INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}/library
 )
 
-# ImGui files
+# ---- ImGui sources ----
 set(IMGUI_DIR ${imgui_SOURCE_DIR})
 set(IMGUI_SOURCES
         ${IMGUI_DIR}/imgui.cpp
@@ -73,7 +65,6 @@ set(IMGUI_SOURCES
         ${IMGUI_DIR}/imgui_widgets.cpp
 )
 
-# ImGui Node Editor files
 set(IMGUI_NODE_EDITOR_DIR ${imgui_node_editor_SOURCE_DIR})
 set(IMGUI_NODE_EDITOR_SOURCES
         ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor.cpp
@@ -86,44 +77,50 @@ set(IMGUI_NODE_EDITOR_SOURCES
         ${IMGUI_NODE_EDITOR_DIR}/imgui_canvas.h
 )
 
-# ImGui SDL3 backend files
 set(IMGUI_SDL3_SOURCES
         ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
         ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer3.cpp
 )
 
-# ImGui FreeType integration
 set(IMGUI_FREETYPE_SOURCES
         ${IMGUI_DIR}/misc/freetype/imgui_freetype.cpp
 )
 
-# Set header files
-set(HEADERS
-        ${LEVEL_SYNTH_INCLUDE_DIR}/application.hpp
-        library/level_synth.hpp
+# ---- Editor executable ----
+set(EDITOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/editor)
+
+set(EDITOR_SOURCES
+        ${EDITOR_DIR}/main.cpp
+        ${EDITOR_DIR}/application.cpp
+        ${EDITOR_DIR}/nodes/node_builder.cpp
+        ${EDITOR_DIR}/nodes/pin_icons.cpp
 )
 
-# Create executable
-add_executable(${PROJECT_NAME}
-        ${SOURCES}
-        ${HEADERS}
+set(EDITOR_HEADERS
+        ${EDITOR_DIR}/application.hpp
+        ${EDITOR_DIR}/nodes/node_builder.hpp
+        ${EDITOR_DIR}/nodes/pin_icons.hpp
+)
+
+add_executable(level_synth_editor
+        ${EDITOR_SOURCES}
+        ${EDITOR_HEADERS}
         ${IMGUI_SOURCES}
         ${IMGUI_NODE_EDITOR_SOURCES}
         ${IMGUI_SDL3_SOURCES}
         ${IMGUI_FREETYPE_SOURCES}
 )
 
-# Include directories
-target_include_directories(${PROJECT_NAME} PRIVATE
-        ${LEVEL_SYNTH_INCLUDE_DIR}
+target_include_directories(level_synth_editor PRIVATE
+        ${EDITOR_DIR}
         ${IMGUI_DIR}
         ${IMGUI_DIR}/misc/freetype
         ${IMGUI_NODE_EDITOR_DIR}
         ${freetype_SOURCE_DIR}/include
 )
 
-# Link libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE
+target_link_libraries(level_synth_editor PRIVATE
+        level_synth_library
         SDL3::SDL3-static
         freetype
 )
