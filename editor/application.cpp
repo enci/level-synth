@@ -1,5 +1,4 @@
 #include "application.hpp"
-#include "nodes/node_colors.hpp"
 #include <imgui_node_editor_node_builder.h>
 #include <imgui_node_editor_pin_icons.h>
 #include <stdexcept>
@@ -181,6 +180,10 @@ void application::update() {
 
     // Floating toolbar overlay
     toolbar();
+
+    // ImGui demo window (for theme tweaking)
+    if (m_show_demo_window)
+        ImGui::ShowDemoWindow(&m_show_demo_window);
 }
 
 void application::render() {
@@ -224,15 +227,15 @@ void application::node_editor() {
     ed::PinId  nodeA_InputPinId = uniqueId++;
     ed::PinId  nodeA_OutputPinId = uniqueId++;
 
-    m_pin_colors[nodeA_InputPinId.Get()]  = editor::pin_color::integer;
-    m_pin_colors[nodeA_OutputPinId.Get()] = editor::pin_color::real;
+    m_pin_colors[nodeA_InputPinId.Get()]  = m_colors[editor::Color_PinInteger];
+    m_pin_colors[nodeA_OutputPinId.Get()] = m_colors[editor::Color_PinReal];
 
     if (m_first_frame)
         ed::SetNodePosition(nodeA_Id, ImVec2(10, 10));
 
     builder.Begin(nodeA_Id);
     {
-        builder.Header(editor::header_color::input);
+        builder.Header(m_colors[editor::Color_HeaderInput]);
             ImGui::TextUnformatted("Input");
             ImGui::Dummy(ImVec2(80, 0));
         builder.EndHeader();
@@ -243,7 +246,7 @@ void application::node_editor() {
             ImGui::BeginGroup();
             {
                 ed::BeginPin(nodeA_InputPinId, ed::PinKind::Input);
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, editor::pin_color::integer);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinInteger]);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Value");
                 ed::EndPin();
@@ -258,7 +261,7 @@ void application::node_editor() {
                 ed::BeginPin(nodeA_OutputPinId, ed::PinKind::Output);
                     ImGui::TextUnformatted("Result");
                     ImGui::SameLine();
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, editor::pin_color::real);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinReal]);
                 ed::EndPin();
             }
             ImGui::EndGroup();
@@ -273,16 +276,16 @@ void application::node_editor() {
     ed::PinId  nodeB_InputPinId2 = uniqueId++;
     ed::PinId  nodeB_OutputPinId = uniqueId++;
 
-    m_pin_colors[nodeB_InputPinId1.Get()] = editor::pin_color::real;
-    m_pin_colors[nodeB_InputPinId2.Get()] = editor::pin_color::integer;
-    m_pin_colors[nodeB_OutputPinId.Get()] = editor::pin_color::grid;
+    m_pin_colors[nodeB_InputPinId1.Get()] = m_colors[editor::Color_PinReal];
+    m_pin_colors[nodeB_InputPinId2.Get()] = m_colors[editor::Color_PinInteger];
+    m_pin_colors[nodeB_OutputPinId.Get()] = m_colors[editor::Color_PinGrid];
 
     if (m_first_frame)
         ed::SetNodePosition(nodeB_Id, ImVec2(310, 60));
 
     builder.Begin(nodeB_Id);
     {
-        builder.Header(editor::header_color::process);
+        builder.Header(m_colors[editor::Color_HeaderProcess]);
             ImGui::TextUnformatted("Process");
             ImGui::Dummy(ImVec2(100, 0));
         builder.EndHeader();
@@ -293,13 +296,13 @@ void application::node_editor() {
             ImGui::BeginGroup();
             {
                 ed::BeginPin(nodeB_InputPinId1, ed::PinKind::Input);
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, editor::pin_color::real);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinReal]);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Grid");
                 ed::EndPin();
 
                 ed::BeginPin(nodeB_InputPinId2, ed::PinKind::Input);
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, editor::pin_color::integer);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinInteger]);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Scale");
                 ed::EndPin();
@@ -314,7 +317,7 @@ void application::node_editor() {
                 ed::BeginPin(nodeB_OutputPinId, ed::PinKind::Output);
                     ImGui::TextUnformatted("Output");
                     ImGui::SameLine();
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Square, true, editor::pin_color::grid);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Square, true, m_colors[editor::Color_PinGrid]);
                 ed::EndPin();
             }
             ImGui::EndGroup();
@@ -389,7 +392,7 @@ void application::toolbar() {
     const float button_size = 24.0f * scale;
 
     // Position at top-center
-    float toolbar_width = 220.0f * scale;
+    float toolbar_width = 380.0f * scale;
     float toolbar_x = (m_width - toolbar_width) * 0.5f;
     float toolbar_y = 12.0f * scale;
 
@@ -399,12 +402,8 @@ void application::toolbar() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f * scale);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(toolbar_padding, toolbar_padding));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg,
-        m_dark_theme ? ImVec4(0.18f, 0.18f, 0.19f, 0.92f)
-                     : ImVec4(0.95f, 0.95f, 0.96f, 0.92f));
-    ImGui::PushStyleColor(ImGuiCol_Border,
-        m_dark_theme ? ImVec4(0.30f, 0.30f, 0.32f, 0.60f)
-                     : ImVec4(0.70f, 0.70f, 0.72f, 0.60f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, m_colors[editor::Color_ToolbarBg]);
+    ImGui::PushStyleColor(ImGuiCol_Border, m_colors[editor::Color_ToolbarBorder]);
 
     ImGui::Begin("##toolbar", nullptr,
         ImGuiWindowFlags_NoTitleBar |
@@ -414,16 +413,13 @@ void application::toolbar() {
         ImGuiWindowFlags_NoScrollWithMouse |
         ImGuiWindowFlags_NoCollapse);
 
-    // Hamburger menu button
+    // Transparent button style
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-        m_dark_theme ? ImVec4(0.30f, 0.30f, 0.32f, 0.60f)
-                     : ImVec4(0.80f, 0.80f, 0.82f, 0.60f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-        m_dark_theme ? ImVec4(0.35f, 0.35f, 0.37f, 0.80f)
-                     : ImVec4(0.70f, 0.70f, 0.72f, 0.80f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_colors[editor::Color_ToolbarButtonHovered]);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_colors[editor::Color_ToolbarButtonActive]);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f * scale);
 
+    // Hamburger menu button
     if (ImGui::Button("=", ImVec2(button_size, button_size)))
     {
         ImGui::OpenPopup("MainMenu");
@@ -454,6 +450,9 @@ void application::toolbar() {
         }
         if (ImGui::BeginMenu("Help"))
         {
+            if (ImGui::MenuItem("ImGui Demo", nullptr, m_show_demo_window))
+                m_show_demo_window = !m_show_demo_window;
+            ImGui::Separator();
             ImGui::MenuItem("About Level Synth");
             ImGui::EndMenu();
         }
@@ -461,8 +460,6 @@ void application::toolbar() {
     }
 
     ImGui::SameLine();
-
-    // Separator
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
     ImGui::SameLine();
 
@@ -480,6 +477,46 @@ void application::toolbar() {
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
     ImGui::SameLine();
 
+    // Zoom controls
+    ed::SetCurrentEditor(m_node_editor_context);
+    float zoom = ed::GetCurrentZoom();
+
+    if (ImGui::Button("-", ImVec2(button_size, button_size)))
+        ed::SetCurrentZoom(zoom * 0.8f);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Zoom out");
+
+    ImGui::SameLine();
+
+    // Zoom percentage display (click to reset to 100%)
+    char zoom_buf[16];
+    snprintf(zoom_buf, sizeof(zoom_buf), "%d%%", (int)(zoom * 100.0f + 0.5f));
+    if (ImGui::Button(zoom_buf, ImVec2(0, button_size)))
+        ed::SetCurrentZoom(1.0f);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Reset zoom to 100%%");
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("+", ImVec2(button_size, button_size)))
+        ed::SetCurrentZoom(zoom * 1.25f);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Zoom in");
+
+    ImGui::SameLine();
+
+    // Fit to content
+    if (ImGui::Button("F", ImVec2(button_size, button_size)))
+        ed::NavigateToContent();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Fit to content");
+
+    ed::SetCurrentEditor(nullptr);
+
+    ImGui::SameLine();
+    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+    ImGui::SameLine();
+
     // FPS display
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * scale);
     ImGui::TextDisabled("%.0f fps", io.Framerate);
@@ -491,6 +528,36 @@ void application::toolbar() {
 
     ImGui::PopStyleColor(2); // WindowBg, Border
     ImGui::PopStyleVar(3); // WindowRounding, WindowPadding, WindowBorderSize
+}
+
+void application::set_node_editor_style() {
+    ed::Style& edStyle = ed::GetStyle();
+    edStyle.NodePadding              = ImVec4(8, 8, 8, 8);
+    edStyle.NodeRounding             = 12.0f;
+    edStyle.HoveredNodeBorderWidth   = 3.0f;
+    edStyle.HoverNodeBorderOffset    = 0.0f;
+    edStyle.SelectedNodeBorderWidth  = 4.0f;
+    edStyle.SelectedNodeBorderOffset = 0.0f;
+    edStyle.PinRounding              = 4.0f;
+    edStyle.PinBorderWidth           = 0.0f;
+    edStyle.LinkStrength             = 100.0f;
+    edStyle.SourceDirection          = ImVec2(1.0f, 0.0f);
+    edStyle.TargetDirection          = ImVec2(-1.0f, 0.0f);
+    edStyle.ScrollDuration           = 0.35f;
+    edStyle.FlowMarkerDistance       = 30.0f;
+    edStyle.FlowSpeed                = 150.0f;
+    edStyle.FlowDuration             = 2.0f;
+    edStyle.PivotAlignment           = ImVec2(0.5f, 0.5f);
+    edStyle.PivotSize                = ImVec2(0.0f, 0.0f);
+    edStyle.PivotScale               = ImVec2(1, 1);
+    edStyle.PinCorners               = ImDrawFlags_RoundCornersAll;
+    edStyle.PinRadius                = 0.0f;
+    edStyle.PinArrowSize             = 0.0f;
+    edStyle.PinArrowWidth            = 0.0f;
+    edStyle.GroupRounding            = 6.0f;
+    edStyle.GroupBorderWidth         = 1.0f;
+    edStyle.HighlightConnectedLinks  = 0.0f;
+    edStyle.SnapLinkToPinDir         = 0.0f;
 }
 
 void application::apply_theme() {
@@ -572,37 +639,24 @@ void application::set_light_theme() {
     colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
     colors[ImGuiCol_WindowShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.40f);
 
+    // Editor custom colors
+    m_colors[editor::Color_PinInteger]          = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
+    m_colors[editor::Color_PinReal]             = ImVec4(0.45f, 0.78f, 0.45f, 1.0f);
+    m_colors[editor::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
+    m_colors[editor::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
+    m_colors[editor::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
+    m_colors[editor::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
+    m_colors[editor::Color_ToolbarBg]           = ImVec4(0.95f, 0.95f, 0.96f, 0.92f);
+    m_colors[editor::Color_ToolbarBorder]       = ImVec4(0.70f, 0.70f, 0.72f, 0.60f);
+    m_colors[editor::Color_ToolbarButtonHovered]= ImVec4(0.80f, 0.80f, 0.82f, 0.60f);
+    m_colors[editor::Color_ToolbarButtonActive] = ImVec4(0.70f, 0.70f, 0.72f, 0.80f);
+
     // Node editor style
-    ed::Style& edStyle = ed::GetStyle();
-    edStyle.NodePadding              = ImVec4(8, 8, 8, 8);
-    edStyle.NodeRounding             = 12.0f;
-    edStyle.NodeBorderWidth          = 1.0f;
-    edStyle.HoveredNodeBorderWidth   = 3.0f;
-    edStyle.HoverNodeBorderOffset    = 0.0f;
-    edStyle.SelectedNodeBorderWidth  = 4.0f;
-    edStyle.SelectedNodeBorderOffset = 0.0f;
-    edStyle.PinRounding              = 4.0f;
-    edStyle.PinBorderWidth           = 0.0f;
-    edStyle.LinkStrength             = 100.0f;
-    edStyle.SourceDirection          = ImVec2(1.0f, 0.0f);
-    edStyle.TargetDirection          = ImVec2(-1.0f, 0.0f);
-    edStyle.ScrollDuration           = 0.35f;
-    edStyle.FlowMarkerDistance       = 30.0f;
-    edStyle.FlowSpeed                = 150.0f;
-    edStyle.FlowDuration             = 2.0f;
-    edStyle.PivotAlignment           = ImVec2(0.5f, 0.5f);
-    edStyle.PivotSize                = ImVec2(0.0f, 0.0f);
-    edStyle.PivotScale               = ImVec2(1, 1);
-    edStyle.PinCorners               = ImDrawFlags_RoundCornersAll;
-    edStyle.PinRadius                = 0.0f;
-    edStyle.PinArrowSize             = 0.0f;
-    edStyle.PinArrowWidth            = 0.0f;
-    edStyle.GroupRounding            = 6.0f;
-    edStyle.GroupBorderWidth         = 1.0f;
-    edStyle.HighlightConnectedLinks  = 0.0f;
-    edStyle.SnapLinkToPinDir         = 0.0f;
+    set_node_editor_style();
 
     using namespace ax::NodeEditor;
+    ed::Style& edStyle = ed::GetStyle();
+    edStyle.NodeBorderWidth = 1.0f;
     edStyle.Colors[StyleColor_Bg]                  = ImColor(0xFFE5E5E7);
     edStyle.Colors[StyleColor_Grid]                = ImColor(180, 180, 182, 40);
     edStyle.Colors[StyleColor_NodeBg]              = ImColor(0xFFF5F5F6);
@@ -694,37 +748,24 @@ void application::set_dark_theme() {
     colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
     colors[ImGuiCol_WindowShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.70f);
 
+    // Editor custom colors
+    m_colors[editor::Color_PinInteger]          = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
+    m_colors[editor::Color_PinReal]             = ImVec4(0.45f, 0.78f, 0.45f, 1.0f);
+    m_colors[editor::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
+    m_colors[editor::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
+    m_colors[editor::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
+    m_colors[editor::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
+    m_colors[editor::Color_ToolbarBg]           = ImVec4(0.18f, 0.18f, 0.19f, 0.92f);
+    m_colors[editor::Color_ToolbarBorder]       = ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
+    m_colors[editor::Color_ToolbarButtonHovered]= ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
+    m_colors[editor::Color_ToolbarButtonActive] = ImVec4(0.35f, 0.35f, 0.37f, 0.80f);
+
     // Node editor style
-    ed::Style& edStyle = ed::GetStyle();
-    edStyle.NodePadding              = ImVec4(8, 8, 8, 8);
-    edStyle.NodeRounding             = 12.0f;
-    edStyle.NodeBorderWidth          = 0.0f;
-    edStyle.HoveredNodeBorderWidth   = 3.0f;
-    edStyle.HoverNodeBorderOffset    = 0.0f;
-    edStyle.SelectedNodeBorderWidth  = 4.0f;
-    edStyle.SelectedNodeBorderOffset = 0.0f;
-    edStyle.PinRounding              = 4.0f;
-    edStyle.PinBorderWidth           = 0.0f;
-    edStyle.LinkStrength             = 100.0f;
-    edStyle.SourceDirection          = ImVec2(1.0f, 0.0f);
-    edStyle.TargetDirection          = ImVec2(-1.0f, 0.0f);
-    edStyle.ScrollDuration           = 0.35f;
-    edStyle.FlowMarkerDistance       = 30.0f;
-    edStyle.FlowSpeed                = 150.0f;
-    edStyle.FlowDuration             = 2.0f;
-    edStyle.PivotAlignment           = ImVec2(0.5f, 0.5f);
-    edStyle.PivotSize                = ImVec2(0.0f, 0.0f);
-    edStyle.PivotScale               = ImVec2(1, 1);
-    edStyle.PinCorners               = ImDrawFlags_RoundCornersAll;
-    edStyle.PinRadius                = 0.0f;
-    edStyle.PinArrowSize             = 0.0f;
-    edStyle.PinArrowWidth            = 0.0f;
-    edStyle.GroupRounding            = 6.0f;
-    edStyle.GroupBorderWidth         = 1.0f;
-    edStyle.HighlightConnectedLinks  = 0.0f;
-    edStyle.SnapLinkToPinDir         = 0.0f;
+    set_node_editor_style();
 
     using namespace ax::NodeEditor;
+    ed::Style& edStyle = ed::GetStyle();
+    edStyle.NodeBorderWidth = 0.0f;
     edStyle.Colors[StyleColor_Bg]                  = ImColor(0xFF2A2A2C);
     edStyle.Colors[StyleColor_Grid]                = ImColor(100, 100, 102, 35);
     edStyle.Colors[StyleColor_NodeBg]              = ImColor(0xFF1E1E20);

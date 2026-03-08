@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <imgui.h>
 #include <imgui_node_editor.h>
+#include "nodes/node_colors.hpp"
 
 struct LinkInfo
 {
@@ -40,6 +41,7 @@ private:
 
     void set_light_theme();
     void set_dark_theme();
+    void set_node_editor_style();
     void apply_theme();
 
     SDL_Window* m_window;
@@ -54,9 +56,12 @@ private:
     float m_ui_scale;
 
     bool m_dark_theme = true;
+    bool m_show_demo_window = false;
     int m_redraw_frames = 0;           // extra frames to render after activity
     static constexpr int k_cooldown_frames = 3;  // frames to keep rendering after last event
     static Uint32 s_redraw_event_type; // custom SDL event for cross-thread wake-up
+
+    ImVec4 m_colors[editor::Color_COUNT];
 
     ax::NodeEditor::EditorContext* m_node_editor_context;
     bool m_first_frame = true;
