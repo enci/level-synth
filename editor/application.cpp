@@ -1,5 +1,6 @@
 #include "application.hpp"
 #include "nodes/node_builder.hpp"
+#include "nodes/node_colors.hpp"
 #include "nodes/pin_icons.hpp"
 #include <stdexcept>
 #include <iostream>
@@ -180,12 +181,15 @@ void application::node_editor() {
     ed::PinId  nodeA_InputPinId = uniqueId++;
     ed::PinId  nodeA_OutputPinId = uniqueId++;
 
+    m_pin_colors[nodeA_InputPinId.Get()]  = editor::pin_color::integer;
+    m_pin_colors[nodeA_OutputPinId.Get()] = editor::pin_color::real;
+
     if (m_first_frame)
         ed::SetNodePosition(nodeA_Id, ImVec2(10, 10));
 
     builder.Begin(nodeA_Id);
     {
-        builder.Header(ImVec4(0.30f, 0.60f, 0.30f, 1.0f));
+        builder.Header(editor::header_color::input);
             ImGui::TextUnformatted("Input");
             ImGui::Dummy(ImVec2(80, 0));
         builder.EndHeader();
@@ -196,8 +200,7 @@ void application::node_editor() {
             ImGui::BeginGroup();
             {
                 ed::BeginPin(nodeA_InputPinId, ed::PinKind::Input);
-                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true,
-                        ImVec4(0.25f, 0.75f, 0.85f, 1.0f));
+                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true, editor::pin_color::integer);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Value");
                 ed::EndPin();
@@ -212,8 +215,7 @@ void application::node_editor() {
                 ed::BeginPin(nodeA_OutputPinId, ed::PinKind::Output);
                     ImGui::TextUnformatted("Result");
                     ImGui::SameLine();
-                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true,
-                        ImVec4(0.45f, 0.78f, 0.45f, 1.0f));
+                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true, editor::pin_color::real);
                 ed::EndPin();
             }
             ImGui::EndGroup();
@@ -228,12 +230,16 @@ void application::node_editor() {
     ed::PinId  nodeB_InputPinId2 = uniqueId++;
     ed::PinId  nodeB_OutputPinId = uniqueId++;
 
+    m_pin_colors[nodeB_InputPinId1.Get()] = editor::pin_color::real;
+    m_pin_colors[nodeB_InputPinId2.Get()] = editor::pin_color::integer;
+    m_pin_colors[nodeB_OutputPinId.Get()] = editor::pin_color::grid;
+
     if (m_first_frame)
         ed::SetNodePosition(nodeB_Id, ImVec2(310, 60));
 
     builder.Begin(nodeB_Id);
     {
-        builder.Header(ImVec4(0.75f, 0.45f, 0.20f, 1.0f));
+        builder.Header(editor::header_color::process);
             ImGui::TextUnformatted("Process");
             ImGui::Dummy(ImVec2(100, 0));
         builder.EndHeader();
@@ -244,15 +250,13 @@ void application::node_editor() {
             ImGui::BeginGroup();
             {
                 ed::BeginPin(nodeB_InputPinId1, ed::PinKind::Input);
-                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true,
-                        ImVec4(0.45f, 0.78f, 0.45f, 1.0f));
+                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true, editor::pin_color::real);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Grid");
                 ed::EndPin();
 
                 ed::BeginPin(nodeB_InputPinId2, ed::PinKind::Input);
-                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true,
-                        ImVec4(0.25f, 0.75f, 0.85f, 1.0f));
+                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true, editor::pin_color::integer);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Scale");
                 ed::EndPin();
@@ -267,8 +271,7 @@ void application::node_editor() {
                 ed::BeginPin(nodeB_OutputPinId, ed::PinKind::Output);
                     ImGui::TextUnformatted("Output");
                     ImGui::SameLine();
-                    editor::DrawPinIcon(iconSize, editor::PinIconType::Square, true,
-                        ImVec4(0.65f, 0.40f, 0.85f, 1.0f));
+                    editor::DrawPinIcon(iconSize, editor::PinIconType::Square, true, editor::pin_color::grid);
                 ed::EndPin();
             }
             ImGui::EndGroup();
@@ -277,9 +280,9 @@ void application::node_editor() {
     }
     builder.End();
 
-    // Submit Links
+    // Submit Links (colored by output pin)
     for (auto& linkInfo : m_links)
-        ed::Link(linkInfo.Id, linkInfo.InputId, linkInfo.OutputId);
+        ed::Link(linkInfo.Id, linkInfo.InputId, linkInfo.OutputId, linkInfo.Color, 2.0f);
 
     // Handle creation
     if (ed::BeginCreate())
@@ -291,8 +294,14 @@ void application::node_editor() {
             {
                 if (ed::AcceptNewItem())
                 {
-                    m_links.push_back({ ed::LinkId(m_next_link_id++), inputPinId, outputPinId });
-                    ed::Link(m_links.back().Id, m_links.back().InputId, m_links.back().OutputId);
+                    // Use output pin color for the link (like Blender)
+                    ImVec4 linkColor(1, 1, 1, 1);
+                    auto it = m_pin_colors.find(outputPinId.Get());
+                    if (it != m_pin_colors.end())
+                        linkColor = it->second;
+
+                    m_links.push_back({ ed::LinkId(m_next_link_id++), inputPinId, outputPinId, linkColor });
+                    ed::Link(m_links.back().Id, m_links.back().InputId, m_links.back().OutputId, linkColor, 2.0f);
                 }
             }
         }
@@ -525,9 +534,9 @@ void application::set_light_theme() {
     edStyle.NodePadding              = ImVec4(8, 8, 8, 8);
     edStyle.NodeRounding             = 12.0f;
     edStyle.NodeBorderWidth          = 1.0f;
-    edStyle.HoveredNodeBorderWidth   = 2.0f;
+    edStyle.HoveredNodeBorderWidth   = 3.0f;
     edStyle.HoverNodeBorderOffset    = 0.0f;
-    edStyle.SelectedNodeBorderWidth  = 2.0f;
+    edStyle.SelectedNodeBorderWidth  = 4.0f;
     edStyle.SelectedNodeBorderOffset = 0.0f;
     edStyle.PinRounding              = 4.0f;
     edStyle.PinBorderWidth           = 0.0f;
@@ -647,9 +656,9 @@ void application::set_dark_theme() {
     edStyle.NodePadding              = ImVec4(8, 8, 8, 8);
     edStyle.NodeRounding             = 12.0f;
     edStyle.NodeBorderWidth          = 0.0f;
-    edStyle.HoveredNodeBorderWidth   = 1.5f;
+    edStyle.HoveredNodeBorderWidth   = 3.0f;
     edStyle.HoverNodeBorderOffset    = 0.0f;
-    edStyle.SelectedNodeBorderWidth  = 2.0f;
+    edStyle.SelectedNodeBorderWidth  = 4.0f;
     edStyle.SelectedNodeBorderOffset = 0.0f;
     edStyle.PinRounding              = 4.0f;
     edStyle.PinBorderWidth           = 0.0f;

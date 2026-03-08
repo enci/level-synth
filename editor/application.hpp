@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <imgui.h>
 #include <imgui_node_editor.h>
 
@@ -11,6 +12,7 @@ struct LinkInfo
     ax::NodeEditor::LinkId Id;
     ax::NodeEditor::PinId InputId;
     ax::NodeEditor::PinId OutputId;
+    ImVec4 Color;
 };
 
 class application {
@@ -52,4 +54,5 @@ private:
     bool m_first_frame = true;
     std::vector<LinkInfo> m_links;
     int m_next_link_id = 100;
+    std::unordered_map<uintptr_t, ImVec4> m_pin_colors;
 };

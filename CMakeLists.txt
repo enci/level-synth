@@ -93,6 +93,7 @@ set(EDITOR_SOURCES
 set(EDITOR_HEADERS
         ${EDITOR_DIR}/application.hpp
         ${EDITOR_DIR}/nodes/node_builder.hpp
+        ${EDITOR_DIR}/nodes/node_colors.hpp
         ${EDITOR_DIR}/nodes/pin_icons.hpp
 )
 
