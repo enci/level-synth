@@ -1,7 +1,7 @@
 #include "application.hpp"
-#include "nodes/node_builder.hpp"
 #include "nodes/node_colors.hpp"
-#include "nodes/pin_icons.hpp"
+#include <imgui_node_editor_node_builder.h>
+#include <imgui_node_editor_pin_icons.h>
 #include <stdexcept>
 #include <iostream>
 
@@ -173,7 +173,7 @@ void application::node_editor() {
     ed::Begin("My Editor", ImVec2(0.0, 0.0f));
 
     int uniqueId = 1;
-    editor::NodeBuilder builder;
+    ed::NodeBuilder builder;
     const ImVec2 iconSize(16, 16);
 
     // --- Node A: Input node (green header) ---
@@ -200,7 +200,7 @@ void application::node_editor() {
             ImGui::BeginGroup();
             {
                 ed::BeginPin(nodeA_InputPinId, ed::PinKind::Input);
-                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true, editor::pin_color::integer);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, editor::pin_color::integer);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Value");
                 ed::EndPin();
@@ -215,7 +215,7 @@ void application::node_editor() {
                 ed::BeginPin(nodeA_OutputPinId, ed::PinKind::Output);
                     ImGui::TextUnformatted("Result");
                     ImGui::SameLine();
-                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true, editor::pin_color::real);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, editor::pin_color::real);
                 ed::EndPin();
             }
             ImGui::EndGroup();
@@ -250,13 +250,13 @@ void application::node_editor() {
             ImGui::BeginGroup();
             {
                 ed::BeginPin(nodeB_InputPinId1, ed::PinKind::Input);
-                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true, editor::pin_color::real);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, editor::pin_color::real);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Grid");
                 ed::EndPin();
 
                 ed::BeginPin(nodeB_InputPinId2, ed::PinKind::Input);
-                    editor::DrawPinIcon(iconSize, editor::PinIconType::Circle, true, editor::pin_color::integer);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, editor::pin_color::integer);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Scale");
                 ed::EndPin();
@@ -271,7 +271,7 @@ void application::node_editor() {
                 ed::BeginPin(nodeB_OutputPinId, ed::PinKind::Output);
                     ImGui::TextUnformatted("Output");
                     ImGui::SameLine();
-                    editor::DrawPinIcon(iconSize, editor::PinIconType::Square, true, editor::pin_color::grid);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Square, true, editor::pin_color::grid);
                 ed::EndPin();
             }
             ImGui::EndGroup();

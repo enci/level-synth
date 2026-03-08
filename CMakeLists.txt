@@ -69,6 +69,10 @@ set(IMGUI_NODE_EDITOR_SOURCES
         ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor_api.cpp
         ${IMGUI_NODE_EDITOR_DIR}/imgui_canvas.cpp
         ${IMGUI_NODE_EDITOR_DIR}/imgui_canvas.h
+        ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor_node_builder.h
+        ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor_node_builder.cpp
+        ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor_pin_icons.h
+        ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor_pin_icons.cpp
 )
 
 set(IMGUI_SDL3_SOURCES
@@ -86,15 +90,11 @@ set(EDITOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/editor)
 set(EDITOR_SOURCES
         ${EDITOR_DIR}/main.cpp
         ${EDITOR_DIR}/application.cpp
-        ${EDITOR_DIR}/nodes/node_builder.cpp
-        ${EDITOR_DIR}/nodes/pin_icons.cpp
 )
 
 set(EDITOR_HEADERS
         ${EDITOR_DIR}/application.hpp
-        ${EDITOR_DIR}/nodes/node_builder.hpp
         ${EDITOR_DIR}/nodes/node_colors.hpp
-        ${EDITOR_DIR}/nodes/pin_icons.hpp
 )
 
 add_executable(level_synth_editor
