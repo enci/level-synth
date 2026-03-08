@@ -442,10 +442,12 @@ void application::toolbar() {
 }
 
 void application::apply_theme() {
+    ed::SetCurrentEditor(m_node_editor_context);
     if (m_dark_theme)
         set_dark_theme();
     else
         set_light_theme();
+    ed::SetCurrentEditor(nullptr);
 }
 
 void application::set_light_theme() {

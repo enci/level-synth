@@ -28,13 +28,8 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
-# Fetch ImGui Node Editor
-FetchContent_Declare(
-        imgui_node_editor
-        GIT_REPOSITORY  https://github.com/enci/imgui-node-editor.git
-        GIT_TAG master
-)
-FetchContent_MakeAvailable(imgui_node_editor)
+# ImGui Node Editor (git submodule in external/)
+set(IMGUI_NODE_EDITOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui-node-editor)
 
 # Fetch FreeType
 FetchContent_Declare(
@@ -65,7 +60,6 @@ set(IMGUI_SOURCES
         ${IMGUI_DIR}/imgui_widgets.cpp
 )
 
-set(IMGUI_NODE_EDITOR_DIR ${imgui_node_editor_SOURCE_DIR})
 set(IMGUI_NODE_EDITOR_SOURCES
         ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor.cpp
         ${IMGUI_NODE_EDITOR_DIR}/imgui_node_editor.h

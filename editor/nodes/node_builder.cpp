@@ -22,7 +22,8 @@ void NodeBuilder::Begin(ed::NodeId id)
 void NodeBuilder::End()
 {
     ImGui::EndGroup();
-    ContentMin = ImGui::GetItemRectMin();
+    auto nodeMin = ImGui::GetItemRectMin();
+    auto nodeMax = ImGui::GetItemRectMax();
 
     ed::EndNode();
 
@@ -36,17 +37,23 @@ void NodeBuilder::End()
 
         auto headerColor = IM_COL32(0, 0, 0, alpha) | (HeaderColor & IM_COL32(255, 255, 255, 0));
 
-        if (HeaderMax.x > HeaderMin.x && HeaderMax.y > HeaderMin.y)
+        if (HeaderMax.y > HeaderMin.y)
         {
+            // Expand content rect by node padding to get full node bounds
+            const auto& padding = ed::GetStyle().NodePadding;
+            auto left   = nodeMin.x - padding.x;
+            auto top    = nodeMin.y - padding.y;
+            auto right  = nodeMax.x + padding.z;
+
             drawList->AddRectFilled(
-                HeaderMin - ImVec2(8 - halfBorderWidth, 4 - halfBorderWidth),
-                HeaderMax + ImVec2(8 - halfBorderWidth, 0),
+                ImVec2(left, top),
+                ImVec2(right, HeaderMax.y + padding.y),
                 headerColor, rounding, ImDrawFlags_RoundCornersTop);
 
             // Separator line below header
             drawList->AddLine(
-                ImVec2(HeaderMin.x - (8 - halfBorderWidth), HeaderMax.y + 0.5f),
-                ImVec2(HeaderMax.x + (8 - halfBorderWidth), HeaderMax.y + 0.5f),
+                ImVec2(left, HeaderMax.y + padding.y + 0.5f),
+                ImVec2(right, HeaderMax.y + padding.y + 0.5f),
                 ImColor(255, 255, 255, 96 * alpha / (3 * 255)), 1.0f);
         }
     }
