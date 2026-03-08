@@ -12,6 +12,16 @@
 
 namespace ed = ax::NodeEditor;
 
+Uint32 application::s_redraw_event_type = 0;
+
+void application::request_redraw() {
+    if (s_redraw_event_type == 0)
+        return;
+    SDL_Event event = {};
+    event.type = s_redraw_event_type;
+    SDL_PushEvent(&event);
+}
+
 application::application(const std::string& title, int width, int height)
     : m_window(nullptr),
       m_renderer(nullptr),
@@ -56,6 +66,10 @@ void application::init_sdl() {
         SDL_Quit();
         throw std::runtime_error("SDL_CreateRenderer Error: " + std::string(SDL_GetError()));
     }
+
+    SDL_SetRenderVSync(m_renderer, 1);
+
+    s_redraw_event_type = SDL_RegisterEvents(1);
 }
 
 void application::init_imgui() {
@@ -99,17 +113,46 @@ void application::run() {
 }
 
 void application::process_events() {
-    while (SDL_PollEvent(&m_event)) {
-        ImGui_ImplSDL3_ProcessEvent(&m_event);
+    bool had_event = false;
 
-        if (m_event.type == SDL_EVENT_QUIT) {
-            m_running = false;
+    if (m_redraw_frames > 0) {
+        // Still cooling down — drain events without blocking
+        while (SDL_PollEvent(&m_event)) {
+            ImGui_ImplSDL3_ProcessEvent(&m_event);
+            dispatch_event(m_event);
+            had_event = true;
         }
+    } else {
+        // Idle — block until something happens (input, resize, worker thread, etc.)
+        if (SDL_WaitEvent(&m_event)) {
+            ImGui_ImplSDL3_ProcessEvent(&m_event);
+            dispatch_event(m_event);
+            had_event = true;
 
-        if (m_event.type == SDL_EVENT_WINDOW_RESIZED) {
-            m_width = m_event.window.data1;
-            m_height = m_event.window.data2;
+            // Drain remaining queued events
+            while (SDL_PollEvent(&m_event)) {
+                ImGui_ImplSDL3_ProcessEvent(&m_event);
+                dispatch_event(m_event);
+            }
         }
+    }
+
+    if (had_event) {
+        // Reset cooldown so ImGui animations/hovers have a few frames to settle
+        m_redraw_frames = k_cooldown_frames;
+    } else if (m_redraw_frames > 0) {
+        m_redraw_frames--;
+    }
+}
+
+void application::dispatch_event(const SDL_Event& event) {
+    if (event.type == SDL_EVENT_QUIT) {
+        m_running = false;
+    }
+
+    if (event.type == SDL_EVENT_WINDOW_RESIZED) {
+        m_width = event.window.data1;
+        m_height = event.window.data2;
     }
 }
 
