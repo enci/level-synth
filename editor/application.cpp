@@ -1,4 +1,5 @@
 #include "application.hpp"
+#include "fluent_glyph.hpp"
 #include <imgui_node_editor_node_builder.h>
 #include <imgui_node_editor_pin_icons.h>
 #include <stdexcept>
@@ -91,6 +92,24 @@ void application::init_imgui() {
     config.OversampleV = 8;
     io.Fonts->AddFontFromFileTTF("../resources/selawk.ttf", font_size * ui_scale, &config);
 
+    // Merge Fluent System Icons into the main font.
+    // OversampleH/V = 1: FreeType handles its own antialiasing, so oversampling
+    // only wastes atlas space.
+    // GlyphOffset.y: the Fluent font has ascender=upem and descent=0, meaning
+    // all icon geometry sits entirely above the baseline. Without an offset the
+    // icons hug the top of every button. Shifting down by ~font_size/4 centres
+    // them against Selawik's actual cap-height. This offset is per-glyph only
+    // and does not affect ImFont::Ascent/Descent or LineSpacing.
+    {
+        ImFontConfig icon_config;
+        icon_config.MergeMode = true;
+        icon_config.OversampleH = 1;
+        icon_config.OversampleV = 1;
+        icon_config.GlyphOffset = ImVec2(0.0f, font_size * ui_scale / 4.0f);
+        io.Fonts->AddFontFromFileTTF("../resources/FluentSystemIcons-Regular.ttf",
+            font_size * ui_scale, &icon_config, xs::tools::get_fluent_glyph_ranges());
+    }
+
     ImGui::GetStyle().ScaleAllSizes(ui_scale);
 }
 
@@ -98,6 +117,7 @@ void application::init_node_editor() {
     ax::NodeEditor::Config config;
     config.SettingsFile = "NodeEditor.json";
     config.EnableSmoothZoom = false;
+    config.CustomZoomLevels.push_back(1.0f);
     config.CanvasSizeMode = ax::NodeEditor::CanvasSizeMode::CenterOnly;
     m_node_editor_context = ed::CreateEditor(&config);
     ed::SetCurrentEditor(m_node_editor_context);
@@ -420,7 +440,7 @@ void application::toolbar() {
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f * scale);
 
     // Hamburger menu button
-    if (ImGui::Button("=", ImVec2(button_size, button_size)))
+    if (ImGui::Button(ICON_FI_BARS, ImVec2(button_size, button_size)))
     {
         ImGui::OpenPopup("MainMenu");
     }
@@ -464,7 +484,7 @@ void application::toolbar() {
     ImGui::SameLine();
 
     // Theme toggle
-    const char* theme_label = m_dark_theme ? "D" : "L";
+    const char* theme_label = m_dark_theme ? ICON_FI_DARK_THEME : ICON_FI_BRIGHTNESS_HIGH;
     if (ImGui::Button(theme_label, ImVec2(button_size, button_size)))
     {
         m_dark_theme = !m_dark_theme;
@@ -477,12 +497,16 @@ void application::toolbar() {
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
     ImGui::SameLine();
 
-    // Zoom controls
+    // Zoom controls.
+    // GetCurrentZoom() returns InvScale (= 1/Scale). SetCurrentZoom(v) sets
+    // Scale = 1/v. So a *smaller* InvScale value means more zoomed in.
+    // Multiply InvScale by > 1 to zoom out, by < 1 to zoom in.
+    // Apparent magnification shown to the user = 1/InvScale * 100 %.
     ed::SetCurrentEditor(m_node_editor_context);
-    float zoom = ed::GetCurrentZoom();
+    float inv_scale = ed::GetCurrentZoom();
 
-    if (ImGui::Button("-", ImVec2(button_size, button_size)))
-        ed::SetCurrentZoom(zoom * 0.8f);
+    if (ImGui::Button(ICON_FI_ZOOM_OUT, ImVec2(button_size, button_size)))
+        ed::SetCurrentZoom(inv_scale * 1.25f);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Zoom out");
 
@@ -490,7 +514,7 @@ void application::toolbar() {
 
     // Zoom percentage display (click to reset to 100%)
     char zoom_buf[16];
-    snprintf(zoom_buf, sizeof(zoom_buf), "%d%%", (int)(zoom * 100.0f + 0.5f));
+    snprintf(zoom_buf, sizeof(zoom_buf), "%d%%", (int)(100.0f / inv_scale + 0.5f));
     if (ImGui::Button(zoom_buf, ImVec2(0, button_size)))
         ed::SetCurrentZoom(1.0f);
     if (ImGui::IsItemHovered())
@@ -498,15 +522,15 @@ void application::toolbar() {
 
     ImGui::SameLine();
 
-    if (ImGui::Button("+", ImVec2(button_size, button_size)))
-        ed::SetCurrentZoom(zoom * 1.25f);
+    if (ImGui::Button(ICON_FI_ZOOM_IN, ImVec2(button_size, button_size)))
+        ed::SetCurrentZoom(inv_scale * 0.8f);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Zoom in");
 
     ImGui::SameLine();
 
     // Fit to content
-    if (ImGui::Button("F", ImVec2(button_size, button_size)))
+    if (ImGui::Button(ICON_FI_ZOOM_FIT, ImVec2(button_size, button_size)))
         ed::NavigateToContent();
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Fit to content");

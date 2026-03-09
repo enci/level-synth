@@ -114,6 +114,10 @@ target_include_directories(level_synth_editor PRIVATE
         ${freetype_SOURCE_DIR}/include
 )
 
+target_compile_definitions(level_synth_editor PRIVATE
+        IMGUI_USE_WCHAR32
+)
+
 target_link_libraries(level_synth_editor PRIVATE
         level_synth_library
         SDL3::SDL3-static
