@@ -52,7 +52,7 @@ void application::init_sdl() {
         throw std::runtime_error("SDL_GetCurrentDisplayMode Error: " + std::string(SDL_GetError()));
     m_ui_scale = displayMode->pixel_density;
 
-    m_window = SDL_CreateWindow(m_title.c_str(), m_width, m_height, SDL_WINDOW_RESIZABLE);
+    m_window = SDL_CreateWindow(m_title.c_str(), m_width, m_height, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!m_window) {
         SDL_Quit();
         throw std::runtime_error("SDL_CreateWindow Error: " + std::string(SDL_GetError()));
@@ -85,12 +85,11 @@ void application::init_imgui() {
     io.Fonts->SetFontLoader(loader);
     io.Fonts->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_ForceAutoHint;
 
-    const float ui_scale = m_ui_scale;
     const float font_size = 16.0f;
     ImFontConfig config;
     config.OversampleH = 8;
     config.OversampleV = 8;
-    io.Fonts->AddFontFromFileTTF("../resources/selawk.ttf", font_size * ui_scale, &config);
+    io.Fonts->AddFontFromFileTTF("../resources/selawk.ttf", font_size, &config);
 
     // Merge Fluent System Icons into the main font.
     // OversampleH/V = 1: FreeType handles its own antialiasing, so oversampling
@@ -105,12 +104,10 @@ void application::init_imgui() {
         icon_config.MergeMode = true;
         icon_config.OversampleH = 1;
         icon_config.OversampleV = 1;
-        icon_config.GlyphOffset = ImVec2(0.0f, font_size * ui_scale / 4.0f);
+        icon_config.GlyphOffset = ImVec2(0.0f, font_size / 4.0f);
         io.Fonts->AddFontFromFileTTF("../resources/FluentSystemIcons-Regular.ttf",
-            font_size * ui_scale, &icon_config, xs::tools::get_fluent_glyph_ranges());
+            font_size, &icon_config, xs::tools::get_fluent_glyph_ranges());
     }
-
-    ImGui::GetStyle().ScaleAllSizes(ui_scale);
 }
 
 void application::init_node_editor() {
@@ -208,6 +205,9 @@ void application::update() {
 
 void application::render() {
     ImGui::Render();
+
+    auto& io = ImGui::GetIO();
+    SDL_SetRenderScale(m_renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
 
     auto& style = ImGui::GetStyle();
     auto bg = style.Colors[ImGuiCol_WindowBg];
@@ -404,7 +404,7 @@ void application::node_editor() {
 
 void application::toolbar() {
     auto& io = ImGui::GetIO();
-    const float scale = m_ui_scale;
+    const float scale = 1.0f;
 
     // Toolbar dimensions
     const float toolbar_height = 36.0f * scale;
