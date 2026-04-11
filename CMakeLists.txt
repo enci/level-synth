@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(level-synth VERSION 0.1.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Include FetchContent for dependencies
@@ -90,11 +90,16 @@ set(EDITOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/editor)
 set(EDITOR_SOURCES
         ${EDITOR_DIR}/main.cpp
         ${EDITOR_DIR}/application.cpp
+        library/level_synth/attribute_grid.cpp
+        library/level_synth/attribute_grid.hpp
 )
 
 set(EDITOR_HEADERS
         ${EDITOR_DIR}/application.hpp
         ${EDITOR_DIR}/nodes/node_colors.hpp
+        library/level_synth/node.hpp
+        library/level_synth/attribute_grid.cpp
+        library/level_synth/attribute_grid.hpp
 )
 
 add_executable(level_synth_editor
