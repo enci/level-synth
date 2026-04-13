@@ -44,9 +44,40 @@ set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
 set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(freetype)
 
-# ---- Library target (header-only for now) ----
-add_library(level_synth_library INTERFACE)
-target_include_directories(level_synth_library INTERFACE
+# ---- Library target ----
+set(LIBRARY_SOURCES
+        library/level_synth/attribute_grid.cpp
+        library/level_synth/eval_context.cpp
+        library/level_synth/eval_engine.cpp
+        library/level_synth/node_registry.cpp
+        library/level_synth/generator.cpp
+        library/level_synth/nodes/node_create_grid.cpp
+        library/level_synth/nodes/node_cellular_automata.cpp
+        library/level_synth/nodes/node_generator_input.cpp
+        library/level_synth/nodes/node_generator_output.cpp
+)
+
+set(LIBRARY_HEADERS
+        library/level_synth/level_synth.hpp
+        library/level_synth/pin.hpp
+        library/level_synth/node.hpp
+        library/level_synth/attribute_grid.hpp
+        library/level_synth/eval_task.hpp
+        library/level_synth/eval_context.hpp
+        library/level_synth/eval_engine.hpp
+        library/level_synth/node_registry.hpp
+        library/level_synth/generator.hpp
+        library/level_synth/nodes/node_create_grid.hpp
+        library/level_synth/nodes/node_cellular_automata.hpp
+        library/level_synth/nodes/node_generator_input.hpp
+        library/level_synth/nodes/node_generator_output.hpp
+)
+
+add_library(level_synth_library STATIC
+        ${LIBRARY_SOURCES}
+        ${LIBRARY_HEADERS}
+)
+target_include_directories(level_synth_library PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/library
 )
 
@@ -90,8 +121,6 @@ set(EDITOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/editor)
 set(EDITOR_SOURCES
         ${EDITOR_DIR}/main.cpp
         ${EDITOR_DIR}/application.cpp
-        library/level_synth/attribute_grid.cpp
-        library/level_synth/eval_context.cpp
 )
 
 set(EDITOR_HEADERS
@@ -122,6 +151,7 @@ target_include_directories(level_synth_editor PRIVATE
 
 target_compile_definitions(level_synth_editor PRIVATE
         IMGUI_USE_WCHAR32
+        LS_EDITOR
 )
 
 target_link_libraries(level_synth_editor PRIVATE

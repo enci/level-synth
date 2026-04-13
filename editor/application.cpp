@@ -247,8 +247,8 @@ void application::node_editor() {
     ed::PinId  nodeA_InputPinId = uniqueId++;
     ed::PinId  nodeA_OutputPinId = uniqueId++;
 
-    m_pin_colors[nodeA_InputPinId.Get()]  = m_colors[editor::Color_PinInteger];
-    m_pin_colors[nodeA_OutputPinId.Get()] = m_colors[editor::Color_PinReal];
+    m_pin_colors[nodeA_InputPinId.Get()]  = m_colors[editor::Color_PinNumber];
+    m_pin_colors[nodeA_OutputPinId.Get()] = m_colors[editor::Color_PinNumber];
 
     if (m_first_frame)
         ed::SetNodePosition(nodeA_Id, ImVec2(10, 10));
@@ -266,7 +266,7 @@ void application::node_editor() {
             ImGui::BeginGroup();
             {
                 ed::BeginPin(nodeA_InputPinId, ed::PinKind::Input);
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinInteger]);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinNumber]);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Value");
                 ed::EndPin();
@@ -281,7 +281,7 @@ void application::node_editor() {
                 ed::BeginPin(nodeA_OutputPinId, ed::PinKind::Output);
                     ImGui::TextUnformatted("Result");
                     ImGui::SameLine();
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinReal]);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinNumber]);
                 ed::EndPin();
             }
             ImGui::EndGroup();
@@ -296,8 +296,8 @@ void application::node_editor() {
     ed::PinId  nodeB_InputPinId2 = uniqueId++;
     ed::PinId  nodeB_OutputPinId = uniqueId++;
 
-    m_pin_colors[nodeB_InputPinId1.Get()] = m_colors[editor::Color_PinReal];
-    m_pin_colors[nodeB_InputPinId2.Get()] = m_colors[editor::Color_PinInteger];
+    m_pin_colors[nodeB_InputPinId1.Get()] = m_colors[editor::Color_PinNumber];
+    m_pin_colors[nodeB_InputPinId2.Get()] = m_colors[editor::Color_PinNumber];
     m_pin_colors[nodeB_OutputPinId.Get()] = m_colors[editor::Color_PinGrid];
 
     if (m_first_frame)
@@ -316,13 +316,13 @@ void application::node_editor() {
             ImGui::BeginGroup();
             {
                 ed::BeginPin(nodeB_InputPinId1, ed::PinKind::Input);
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinReal]);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinNumber]);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Grid");
                 ed::EndPin();
 
                 ed::BeginPin(nodeB_InputPinId2, ed::PinKind::Input);
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinInteger]);
+                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinNumber]);
                     ImGui::SameLine();
                     ImGui::TextUnformatted("Scale");
                 ed::EndPin();
@@ -664,8 +664,8 @@ void application::set_light_theme() {
     colors[ImGuiCol_WindowShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.40f);
 
     // Editor custom colors
-    m_colors[editor::Color_PinInteger]          = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
-    m_colors[editor::Color_PinReal]             = ImVec4(0.45f, 0.78f, 0.45f, 1.0f);
+    m_colors[editor::Color_PinNumber]          = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
+    //m_colors[editor::Color_PinReal]             = ImVec4(0.45f, 0.78f, 0.45f, 1.0f);
     m_colors[editor::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
     m_colors[editor::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
     m_colors[editor::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
@@ -773,8 +773,8 @@ void application::set_dark_theme() {
     colors[ImGuiCol_WindowShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.70f);
 
     // Editor custom colors
-    m_colors[editor::Color_PinInteger]          = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
-    m_colors[editor::Color_PinReal]             = ImVec4(0.45f, 0.78f, 0.45f, 1.0f);
+    m_colors[editor::Color_PinNumber]          = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
+    //m_colors[editor::Color_PinReal]             = ImVec4(0.45f, 0.78f, 0.45f, 1.0f);
     m_colors[editor::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
     m_colors[editor::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
     m_colors[editor::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
