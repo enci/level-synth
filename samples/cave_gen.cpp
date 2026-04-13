@@ -7,13 +7,7 @@
 //   [InputNumber "iterations"] ------> [CellularAutomata] ----> [OutputGrid "level"]
 //              [NoiseGrid] ----------^
 
-#include <level_synth/generator.hpp>
-#include <level_synth/eval_engine.hpp>
-#include <level_synth/attribute_grid.hpp>
-#include <level_synth/nodes/node_input_number.hpp>
-#include <level_synth/nodes/node_noise_grid.hpp>
-#include <level_synth/nodes/node_cellular_automata.hpp>
-#include <level_synth/nodes/node_output_grid.hpp>
+#include <level_synth/level_synth.hpp>
 
 #include <iostream>
 
@@ -21,7 +15,6 @@ int main() {
     ls::generator gen;
     ls::eval_engine& engine = gen.engine();
 
-    // -- Build the graph --
 
     // Input: number of CA iterations
     auto iterations_node = std::make_unique<ls::node_input_number>();

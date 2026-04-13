@@ -9,13 +9,10 @@
 #include <imgui_node_editor.h>
 #include "nodes/node_colors.hpp"
 
-struct LinkInfo
-{
-    ax::NodeEditor::LinkId Id;
-    ax::NodeEditor::PinId InputId;
-    ax::NodeEditor::PinId OutputId;
-    ImVec4 Color;
-};
+#include <level_synth/generator.hpp>
+#include <level_synth/eval_engine.hpp>
+#include <level_synth/node.hpp>
+#include <level_synth/pin.hpp>
 
 class application {
 public:
@@ -65,8 +62,31 @@ private:
     ImVec4 m_colors[editor::Color_COUNT];
 
     ax::NodeEditor::EditorContext* m_node_editor_context;
+
+    ls::generator m_generator;
     bool m_first_frame = true;
-    std::vector<LinkInfo> m_links;
-    int m_next_link_id = 100;
-    std::unordered_map<uintptr_t, ImVec4> m_pin_colors;
+
+    // Editor-only state
+    struct wire_visual {
+        int from_node;
+        std::string from_pin;
+        int to_node;
+        std::string to_pin;
+    };
+    int m_next_link_id = 1;
+    std::unordered_map<int, wire_visual> m_link_to_wire;  // link_id -> wire info
+
+    // Helper functions
+    static ax::NodeEditor::PinId make_pin_id(int node_id, int pin_index);
+    static std::pair<int, int> unpack_pin_id(ax::NodeEditor::PinId pin_id);
+    ImVec4 pin_color(ls::pin_type type) const;
+    ImVec4 category_color(const std::string& category) const;
+
+    // Find pin descriptor from packed pin ID
+    struct pin_info {
+        int node_id;
+        int pin_index;
+        const ls::pin_descriptor* desc;
+    };
+    pin_info resolve_pin(ax::NodeEditor::PinId pin_id) const;
 };

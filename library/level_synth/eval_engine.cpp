@@ -49,6 +49,11 @@ node* eval_engine::find_node(int node_id) {
     return it != m_nodes.end() ? it->second.get() : nullptr;
 }
 
+const node* eval_engine::find_node(int node_id) const {
+    auto it = m_nodes.find(node_id);
+    return it != m_nodes.end() ? it->second.get() : nullptr;
+}
+
 std::vector<int> eval_engine::node_ids() const {
     std::vector<int> ids;
     ids.reserve(m_nodes.size());

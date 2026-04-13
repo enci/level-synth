@@ -10,6 +10,9 @@
 #include "backends/imgui_impl_sdlrenderer3.h"
 #include "misc/freetype/imgui_freetype.h"
 
+#include <level_synth/nodes/node_create_grid.hpp>
+#include <level_synth/nodes/node_cellular_automata.hpp>
+
 namespace ed = ax::NodeEditor;
 
 Uint32 application::s_redraw_event_type = 0;
@@ -119,6 +122,17 @@ void application::init_node_editor() {
     config.CanvasSizeMode = ax::NodeEditor::CanvasSizeMode::CenterOnly;
     m_node_editor_context = ed::CreateEditor(&config);
     ed::SetCurrentEditor(m_node_editor_context);
+
+    // Add test nodes to the engine
+    auto& eng = m_generator.engine();
+    int create_id = eng.add_node(std::make_unique<ls::node_create_grid>());
+    int ca_id = eng.add_node(std::make_unique<ls::node_cellular_automata>());
+
+    // Wire them: Create Grid "grid" -> Cellular Automata "input"
+    eng.add_wire({ create_id, "grid", ca_id, "input" });
+
+    // Register the wire in our visual side map
+    m_link_to_wire[m_next_link_id++] = { create_id, "grid", ca_id, "input" };
 }
 
 void application::run() {
@@ -234,172 +248,231 @@ void application::cleanup() {
     SDL_Quit();
 }
 
+ed::PinId application::make_pin_id(int node_id, int pin_index) {
+    return ed::PinId(static_cast<uintptr_t>(node_id) << 16 | static_cast<uintptr_t>(pin_index));
+}
+
+std::pair<int, int> application::unpack_pin_id(ed::PinId pin_id) {
+    auto val = pin_id.Get();
+    return { static_cast<int>(val >> 16), static_cast<int>(val & 0xFFFF) };
+}
+
+ImVec4 application::pin_color(ls::pin_type type) const {
+    switch (type) {
+        case ls::pin_type::number: return m_colors[editor::Color_PinNumber];
+        case ls::pin_type::grid:   return m_colors[editor::Color_PinGrid];
+    }
+    return ImVec4(1, 1, 1, 1);
+}
+
+ImVec4 application::category_color(const std::string& category) const {
+    if (category == "IO")         return m_colors[editor::Color_HeaderInput];
+    if (category == "Generation") return m_colors[editor::Color_HeaderProcess];
+    if (category == "Analysis")   return m_colors[editor::Color_HeaderProcess];
+    return m_colors[editor::Color_HeaderOutput];
+}
+
+application::pin_info application::resolve_pin(ed::PinId pin_id) const {
+    auto [node_id, pin_index] = unpack_pin_id(pin_id);
+    auto* n = m_generator.engine().find_node(node_id);
+    if (!n) return { node_id, pin_index, nullptr };
+    const auto& desc = n->descriptor();
+    if (pin_index < 0 || pin_index >= static_cast<int>(desc.pins.size()))
+        return { node_id, pin_index, nullptr };
+    return { node_id, pin_index, &desc.pins[pin_index] };
+}
+
 void application::node_editor() {
     ed::SetCurrentEditor(m_node_editor_context);
+    ed::Begin("Level Synth", ImVec2(0.0, 0.0f));
 
-    ed::Begin("My Editor", ImVec2(0.0, 0.0f));
-
-    int uniqueId = 1;
+    auto& eng = m_generator.engine();
     ed::NodeBuilder builder;
-    const ImVec2 iconSize(16, 16);
+    const ImVec2 icon_size(16, 16);
 
-    // --- Node A: Input node (green header) ---
-    ed::NodeId nodeA_Id = uniqueId++;
-    ed::PinId  nodeA_InputPinId = uniqueId++;
-    ed::PinId  nodeA_OutputPinId = uniqueId++;
+    // --- Render all nodes from engine ---
+    for (int node_id : eng.node_ids()) {
+        auto* n = eng.find_node(node_id);
+        if (!n) continue;
 
-    m_pin_colors[nodeA_InputPinId.Get()]  = m_colors[editor::Color_PinNumber];
-    m_pin_colors[nodeA_OutputPinId.Get()] = m_colors[editor::Color_PinNumber];
+        const auto& desc = n->descriptor();
+        ImVec4 header_color = category_color(desc.category);
 
-    if (m_first_frame)
-        ed::SetNodePosition(nodeA_Id, ImVec2(10, 10));
-
-    builder.Begin(nodeA_Id);
-    {
-        builder.Header(m_colors[editor::Color_HeaderInput]);
-            ImGui::TextUnformatted("Input");
-            ImGui::Dummy(ImVec2(80, 0));
-        builder.EndHeader();
-
-        builder.BeginColumns();
-        {
-            // Inputs column
-            ImGui::BeginGroup();
-            {
-                ed::BeginPin(nodeA_InputPinId, ed::PinKind::Input);
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinNumber]);
-                    ImGui::SameLine();
-                    ImGui::TextUnformatted("Value");
-                ed::EndPin();
-            }
-            ImGui::EndGroup();
-
-            ImGui::SameLine(0, 20);
-
-            // Outputs column
-            ImGui::BeginGroup();
-            {
-                ed::BeginPin(nodeA_OutputPinId, ed::PinKind::Output);
-                    ImGui::TextUnformatted("Result");
-                    ImGui::SameLine();
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinNumber]);
-                ed::EndPin();
-            }
-            ImGui::EndGroup();
+        if (m_first_frame) {
+            // Stagger initial positions so nodes don't overlap
+            ed::SetNodePosition(ed::NodeId(node_id),
+                ImVec2(10.0f + (node_id - 1) * 300.0f, 10.0f));
         }
-        builder.EndColumns();
-    }
-    builder.End();
 
-    // --- Node B: Process node (orange header) ---
-    ed::NodeId nodeB_Id = uniqueId++;
-    ed::PinId  nodeB_InputPinId1 = uniqueId++;
-    ed::PinId  nodeB_InputPinId2 = uniqueId++;
-    ed::PinId  nodeB_OutputPinId = uniqueId++;
-
-    m_pin_colors[nodeB_InputPinId1.Get()] = m_colors[editor::Color_PinNumber];
-    m_pin_colors[nodeB_InputPinId2.Get()] = m_colors[editor::Color_PinNumber];
-    m_pin_colors[nodeB_OutputPinId.Get()] = m_colors[editor::Color_PinGrid];
-
-    if (m_first_frame)
-        ed::SetNodePosition(nodeB_Id, ImVec2(310, 60));
-
-    builder.Begin(nodeB_Id);
-    {
-        builder.Header(m_colors[editor::Color_HeaderProcess]);
-            ImGui::TextUnformatted("Process");
-            ImGui::Dummy(ImVec2(100, 0));
-        builder.EndHeader();
-
-        builder.BeginColumns();
+        builder.Begin(ed::NodeId(node_id));
         {
-            // Inputs column
-            ImGui::BeginGroup();
+            builder.Header(header_color);
+                ImGui::TextUnformatted(desc.name.c_str());
+                ImGui::Dummy(ImVec2(80, 0));
+            builder.EndHeader();
+
+#ifdef LS_EDITOR
+            n->draw_ui();
+#endif
+
+            builder.BeginColumns();
             {
-                ed::BeginPin(nodeB_InputPinId1, ed::PinKind::Input);
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinNumber]);
-                    ImGui::SameLine();
-                    ImGui::TextUnformatted("Grid");
-                ed::EndPin();
+                // Input pins (left column)
+                ImGui::BeginGroup();
+                for (int i = 0; i < static_cast<int>(desc.pins.size()); i++) {
+                    const auto& pin = desc.pins[i];
+                    if (pin.direction != ls::pin_direction::input) continue;
 
-                ed::BeginPin(nodeB_InputPinId2, ed::PinKind::Input);
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Circle, true, m_colors[editor::Color_PinNumber]);
-                    ImGui::SameLine();
-                    ImGui::TextUnformatted("Scale");
-                ed::EndPin();
+                    auto pid = make_pin_id(node_id, i);
+                    ImVec4 color = pin_color(pin.type);
+
+                    ed::BeginPin(pid, ed::PinKind::Input);
+                        ed::DrawPinIcon(icon_size, ed::PinIconType::Circle, true, color);
+                        ImGui::SameLine();
+                        ImGui::TextUnformatted(pin.name.c_str());
+                    ed::EndPin();
+                }
+                ImGui::EndGroup();
+
+                ImGui::SameLine(0, 20);
+
+                // Output pins (right column)
+                ImGui::BeginGroup();
+                for (int i = 0; i < static_cast<int>(desc.pins.size()); i++) {
+                    const auto& pin = desc.pins[i];
+                    if (pin.direction != ls::pin_direction::output) continue;
+
+                    auto pid = make_pin_id(node_id, i);
+                    ImVec4 color = pin_color(pin.type);
+
+                    ed::BeginPin(pid, ed::PinKind::Output);
+                        ImGui::TextUnformatted(pin.name.c_str());
+                        ImGui::SameLine();
+                        ed::DrawPinIcon(icon_size, ed::PinIconType::Circle, true, color);
+                    ed::EndPin();
+                }
+                ImGui::EndGroup();
             }
-            ImGui::EndGroup();
-
-            ImGui::SameLine(0, 20);
-
-            // Outputs column
-            ImGui::BeginGroup();
-            {
-                ed::BeginPin(nodeB_OutputPinId, ed::PinKind::Output);
-                    ImGui::TextUnformatted("Output");
-                    ImGui::SameLine();
-                    ed::DrawPinIcon(iconSize, ed::PinIconType::Square, true, m_colors[editor::Color_PinGrid]);
-                ed::EndPin();
-            }
-            ImGui::EndGroup();
+            builder.EndColumns();
         }
-        builder.EndColumns();
+        builder.End();
     }
-    builder.End();
 
-    // Submit Links (colored by output pin)
-    for (auto& linkInfo : m_links)
-        ed::Link(linkInfo.Id, linkInfo.InputId, linkInfo.OutputId, linkInfo.Color, 2.0f);
+    // --- Render links from side map ---
+    for (const auto& [link_id, wv] : m_link_to_wire) {
+        // Find output pin ID
+        auto* from_node = eng.find_node(wv.from_node);
+        auto* to_node = eng.find_node(wv.to_node);
+        if (!from_node || !to_node) continue;
 
-    // Handle creation
-    if (ed::BeginCreate())
-    {
-        ed::PinId inputPinId, outputPinId;
-        if (ed::QueryNewLink(&inputPinId, &outputPinId))
-        {
-            if (inputPinId && outputPinId)
-            {
-                if (ed::AcceptNewItem())
-                {
-                    // Use output pin color for the link (like Blender)
-                    ImVec4 linkColor(1, 1, 1, 1);
-                    auto it = m_pin_colors.find(outputPinId.Get());
-                    if (it != m_pin_colors.end())
-                        linkColor = it->second;
+        const auto& from_desc = from_node->descriptor();
+        const auto& to_desc = to_node->descriptor();
 
-                    m_links.push_back({ ed::LinkId(m_next_link_id++), inputPinId, outputPinId, linkColor });
-                    ed::Link(m_links.back().Id, m_links.back().InputId, m_links.back().OutputId, linkColor, 2.0f);
+        ed::PinId from_pin_id, to_pin_id;
+        ImVec4 link_color(1, 1, 1, 1);
+
+        // Find output pin index by name
+        for (int i = 0; i < static_cast<int>(from_desc.pins.size()); i++) {
+            if (from_desc.pins[i].name == wv.from_pin &&
+                from_desc.pins[i].direction == ls::pin_direction::output) {
+                from_pin_id = make_pin_id(wv.from_node, i);
+                link_color = pin_color(from_desc.pins[i].type);
+                break;
+            }
+        }
+
+        // Find input pin index by name
+        for (int i = 0; i < static_cast<int>(to_desc.pins.size()); i++) {
+            if (to_desc.pins[i].name == wv.to_pin &&
+                to_desc.pins[i].direction == ls::pin_direction::input) {
+                to_pin_id = make_pin_id(wv.to_node, i);
+                break;
+            }
+        }
+
+        ed::Link(ed::LinkId(link_id), from_pin_id, to_pin_id, link_color, 2.0f);
+    }
+
+    // --- Handle new connections ---
+    if (ed::BeginCreate()) {
+        ed::PinId input_pin_id, output_pin_id;
+        if (ed::QueryNewLink(&input_pin_id, &output_pin_id)) {
+            if (input_pin_id && output_pin_id) {
+                auto input_info = resolve_pin(input_pin_id);
+                auto output_info = resolve_pin(output_pin_id);
+
+                // Determine which is input and which is output
+                // (user might drag from either direction)
+                const ls::pin_descriptor* src = nullptr;
+                const ls::pin_descriptor* dst = nullptr;
+                int src_node, dst_node;
+                std::string src_pin, dst_pin;
+
+                if (input_info.desc && input_info.desc->direction == ls::pin_direction::output &&
+                    output_info.desc && output_info.desc->direction == ls::pin_direction::input) {
+                    src = input_info.desc;  src_node = input_info.node_id;  src_pin = src->name;
+                    dst = output_info.desc; dst_node = output_info.node_id; dst_pin = dst->name;
+                } else if (input_info.desc && input_info.desc->direction == ls::pin_direction::input &&
+                           output_info.desc && output_info.desc->direction == ls::pin_direction::output) {
+                    dst = input_info.desc;  dst_node = input_info.node_id;  dst_pin = dst->name;
+                    src = output_info.desc; src_node = output_info.node_id; src_pin = src->name;
+                }
+
+                bool can_connect = src && dst && src->type == dst->type;
+
+                if (can_connect) {
+                    if (ed::AcceptNewItem()) {
+                        ls::wire w{ src_node, src_pin, dst_node, dst_pin };
+                        eng.add_wire(w);
+
+                        int link_id = m_next_link_id++;
+                        m_link_to_wire[link_id] = { src_node, src_pin, dst_node, dst_pin };
+                    }
+                } else {
+                    ed::RejectNewItem(ImVec4(1, 0, 0, 1), 2.0f);
                 }
             }
         }
     }
     ed::EndCreate();
 
-    // Handle deletion
-    if (ed::BeginDelete())
-    {
-        ed::LinkId deletedLinkId;
-        while (ed::QueryDeletedLink(&deletedLinkId))
-        {
-            if (ed::AcceptDeletedItem())
-            {
-                for (auto it = m_links.begin(); it != m_links.end(); ++it)
-                {
-                    if (it->Id == deletedLinkId)
-                    {
-                        m_links.erase(it);
-                        break;
-                    }
+    // --- Handle deletions ---
+    if (ed::BeginDelete()) {
+        // Link deletion
+        ed::LinkId deleted_link_id;
+        while (ed::QueryDeletedLink(&deleted_link_id)) {
+            if (ed::AcceptDeletedItem()) {
+                int lid = static_cast<int>(deleted_link_id.Get());
+                auto it = m_link_to_wire.find(lid);
+                if (it != m_link_to_wire.end()) {
+                    const auto& wv = it->second;
+                    eng.remove_wire(wv.from_node, wv.from_pin,
+                                    wv.to_node, wv.to_pin);
+                    m_link_to_wire.erase(it);
                 }
+            }
+        }
+
+        // Node deletion
+        ed::NodeId deleted_node_id;
+        while (ed::QueryDeletedNode(&deleted_node_id)) {
+            if (ed::AcceptDeletedItem()) {
+                int nid = static_cast<int>(deleted_node_id.Get());
+
+                // Remove associated links
+                std::erase_if(m_link_to_wire, [&](const auto& pair) {
+                    const auto& wv = pair.second;
+                    return wv.from_node == nid || wv.to_node == nid;
+                });
+
+                eng.remove_node(nid);
             }
         }
     }
     ed::EndDelete();
 
     ed::End();
-
     ed::SetCurrentEditor(nullptr);
-
     m_first_frame = false;
 }
 

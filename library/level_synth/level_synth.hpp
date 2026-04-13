@@ -14,3 +14,4 @@
 #include "nodes/node_input_number.hpp"
 #include "nodes/node_output_grid.hpp"
 #include "nodes/node_output_number.hpp"
+#include "nodes/node_noise_grid.hpp"

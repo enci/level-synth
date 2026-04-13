@@ -31,6 +31,7 @@ public:
                      int to_node, const std::string& to_pin);
 
     node* find_node(int node_id);
+    const node* find_node(int node_id) const;
     std::vector<int> node_ids() const;
 
     // --- Evaluation ---
