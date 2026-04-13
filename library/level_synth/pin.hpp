@@ -9,8 +9,7 @@ namespace ls {
 class attribute_grid;
 
 enum class pin_type {
-    integer,
-    real,
+    number,
     grid
 };
 
@@ -27,9 +26,8 @@ struct pin_descriptor {
 };
 
 using pin_value = std::variant<
-    int,
-    float,
+    double,
     std::shared_ptr<attribute_grid>
 >;
 
-}
+} // namespace ls

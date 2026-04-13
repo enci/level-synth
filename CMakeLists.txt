@@ -91,15 +91,16 @@ set(EDITOR_SOURCES
         ${EDITOR_DIR}/main.cpp
         ${EDITOR_DIR}/application.cpp
         library/level_synth/attribute_grid.cpp
-        library/level_synth/attribute_grid.hpp
+        library/level_synth/eval_context.cpp
 )
 
 set(EDITOR_HEADERS
         ${EDITOR_DIR}/application.hpp
         ${EDITOR_DIR}/nodes/node_colors.hpp
         library/level_synth/node.hpp
-        library/level_synth/attribute_grid.cpp
         library/level_synth/attribute_grid.hpp
+        library/level_synth/eval_context.hpp
+        library/level_synth/eval_task.hpp
 )
 
 add_executable(level_synth_editor
