@@ -24,13 +24,14 @@ struct wire {
 class eval_engine {
 public:
     // --- Graph construction ---
-    void add_node(std::unique_ptr<node> n);
+    int add_node(std::unique_ptr<node> n);
     void remove_node(int node_id);
     void add_wire(const wire& w);
     void remove_wire(int from_node, const std::string& from_pin,
                      int to_node, const std::string& to_pin);
 
     node* find_node(int node_id);
+    std::vector<int> node_ids() const;
 
     // --- Evaluation ---
     void evaluate(int master_seed = 0);
@@ -47,7 +48,9 @@ public:
 private:
     std::vector<int> topological_sort() const;
     eval_context build_context(int node_id, int master_seed) const;
+    void invalidate(int node_id);
 
+    int m_next_id = 1;
     std::unordered_map<int, std::unique_ptr<node>> m_nodes;
     std::vector<wire> m_wires;
 
