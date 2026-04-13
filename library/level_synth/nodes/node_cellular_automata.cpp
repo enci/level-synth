@@ -1,6 +1,7 @@
 #include "node_cellular_automata.hpp"
 #include "../eval_context.hpp"
 #include "../attribute_grid.hpp"
+#include "../node_registry.hpp"
 
 namespace ls {
 
@@ -89,5 +90,7 @@ void node_cellular_automata::draw_ui() {
     // TODO: text input for attribute_name
 }
 #endif
+
+LS_REGISTER_NODE(node_cellular_automata);
 
 }

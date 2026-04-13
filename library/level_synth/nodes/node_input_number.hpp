@@ -4,7 +4,7 @@
 
 namespace ls {
 
-class node_generator_input : public node {
+class node_input_number : public node {
 public:
     const node_descriptor& descriptor() const override;
     eval_task evaluate(eval_context& ctx) override;

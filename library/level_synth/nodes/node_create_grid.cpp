@@ -1,6 +1,7 @@
 #include "node_create_grid.hpp"
 #include "../eval_context.hpp"
 #include "../attribute_grid.hpp"
+#include "../node_registry.hpp"
 
 namespace ls {
 
@@ -40,5 +41,7 @@ eval_task node_create_grid::evaluate(eval_context& ctx) {
 #ifdef LS_EDITOR
 void node_create_grid::draw_ui() {}
 #endif
+
+LS_REGISTER_NODE(node_create_grid);
 
 } // namespace ls
