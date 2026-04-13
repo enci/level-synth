@@ -53,8 +53,10 @@ set(LIBRARY_SOURCES
         library/level_synth/generator.cpp
         library/level_synth/nodes/node_create_grid.cpp
         library/level_synth/nodes/node_cellular_automata.cpp
-        library/level_synth/nodes/node_generator_input.cpp
-        library/level_synth/nodes/node_generator_output.cpp
+        library/level_synth/nodes/node_input_number.cpp
+        library/level_synth/nodes/node_output_grid.cpp
+        library/level_synth/nodes/node_output_number.cpp
+        library/level_synth/nodes/node_noise_grid.cpp
 )
 
 set(LIBRARY_HEADERS
@@ -69,8 +71,10 @@ set(LIBRARY_HEADERS
         library/level_synth/generator.hpp
         library/level_synth/nodes/node_create_grid.hpp
         library/level_synth/nodes/node_cellular_automata.hpp
-        library/level_synth/nodes/node_generator_input.hpp
-        library/level_synth/nodes/node_generator_output.hpp
+        library/level_synth/nodes/node_input_number.hpp
+        library/level_synth/nodes/node_output_grid.hpp
+        library/level_synth/nodes/node_output_number.hpp
+        library/level_synth/nodes/node_noise_grid.hpp
 )
 
 add_library(level_synth_library STATIC
@@ -79,6 +83,10 @@ add_library(level_synth_library STATIC
 )
 target_include_directories(level_synth_library PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/library
+)
+
+target_compile_definitions(level_synth_library PUBLIC
+        LS_EDITOR
 )
 
 # ---- ImGui sources ----
@@ -151,7 +159,6 @@ target_include_directories(level_synth_editor PRIVATE
 
 target_compile_definitions(level_synth_editor PRIVATE
         IMGUI_USE_WCHAR32
-        LS_EDITOR
 )
 
 target_link_libraries(level_synth_editor PRIVATE
@@ -159,3 +166,29 @@ target_link_libraries(level_synth_editor PRIVATE
         SDL3::SDL3-static
         freetype
 )
+
+# ---- Tests ----
+FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG v3.8.0
+)
+FetchContent_MakeAvailable(Catch2)
+
+add_executable(level_synth_tests
+        tests/test_attribute_grid.cpp
+)
+
+target_link_libraries(level_synth_tests PRIVATE
+        level_synth_library
+        Catch2::Catch2WithMain
+)
+
+enable_testing()
+list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+include(Catch)
+catch_discover_tests(level_synth_tests)
+
+# ---- Samples ----
+add_executable(sample_cave_gen samples/cave_gen.cpp)
+target_link_libraries(sample_cave_gen PRIVATE level_synth_library)
