@@ -114,6 +114,7 @@ void application::init_node_editor() {
     ax::NodeEditor::Config config;
     config.SettingsFile = "NodeEditor.json";
     config.EnableSmoothZoom = false;
+    config.NavigateButtonIndex = 2; // Middle mouse button for panning
     config.CustomZoomLevels.push_back(1.0f);
     config.CanvasSizeMode = ax::NodeEditor::CanvasSizeMode::CenterOnly;
     m_node_editor_context = ed::CreateEditor(&config);
@@ -665,7 +666,6 @@ void application::set_light_theme() {
 
     // Editor custom colors
     m_colors[editor::Color_PinNumber]          = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
-    //m_colors[editor::Color_PinReal]             = ImVec4(0.45f, 0.78f, 0.45f, 1.0f);
     m_colors[editor::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
     m_colors[editor::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
     m_colors[editor::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
@@ -774,7 +774,6 @@ void application::set_dark_theme() {
 
     // Editor custom colors
     m_colors[editor::Color_PinNumber]          = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
-    //m_colors[editor::Color_PinReal]             = ImVec4(0.45f, 0.78f, 0.45f, 1.0f);
     m_colors[editor::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
     m_colors[editor::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
     m_colors[editor::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
