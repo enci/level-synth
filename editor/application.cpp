@@ -1,5 +1,5 @@
 #include "application.hpp"
-#include "fluent_glyph.hpp"
+#include "phosphor_icons.hpp"
 #include <imgui_node_editor_node_builder.h>
 #include <imgui_node_editor_pin_icons.h>
 #include <stdexcept>
@@ -103,22 +103,20 @@ void application::init_imgui() {
     config.OversampleV = 8;
     io.Fonts->AddFontFromFileTTF("../resources/selawk.ttf", k_font_size, &config);
 
-    // Merge Fluent System Icons into the main font.
-    // OversampleH/V = 1: FreeType handles its own antialiasing, so oversampling
-    // only wastes atlas space.
-    // GlyphOffset.y: the Fluent font has ascender=upem and descent=0, meaning
-    // all icon geometry sits entirely above the baseline. Without an offset the
-    // icons hug the top of every button. Shifting down by ~font_size/4 centres
-    // them against Selawik's actual cap-height. This offset is per-glyph only
-    // and does not affect ImFont::Ascent/Descent or LineSpacing.
+    // Merge Phosphor Fill icons into the main font.
+    // OversampleH/V = 1: FreeType handles its own antialiasing.
+    // Phosphor uses standard EM metrics (ascender/descender balanced), so no
+    // GlyphOffset correction is needed unlike the old Fluent font.
     {
         ImFontConfig icon_config;
         icon_config.MergeMode = true;
         icon_config.OversampleH = 1;
         icon_config.OversampleV = 1;
-        icon_config.GlyphOffset = ImVec2(0.0f, k_font_size / 4.0f);
-        io.Fonts->AddFontFromFileTTF("../resources/FluentSystemIcons-Regular.ttf",
-            k_font_size, &icon_config, xs::tools::get_fluent_glyph_ranges());
+        static const ImWchar ph_ranges[] = {
+            phosphor::PH_RANGE_BEGIN, phosphor::PH_RANGE_END, 0
+        };
+        io.Fonts->AddFontFromFileTTF("../resources/Phosphor-Fill.woff",
+            k_font_size, &icon_config, ph_ranges);
     }
 }
 
@@ -202,10 +200,12 @@ void application::update() {
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    // --- Fullscreen DockSpace host ---
+    menu_bar();
+
+    // --- Fullscreen DockSpace host (below menu bar, above status bar) ---
     ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->WorkPos);
-    ImGui::SetNextWindowSize(vp->WorkSize);
+    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, vp->WorkSize.y - k_status_bar_height));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::Begin("##dockhost", nullptr,
@@ -235,13 +235,12 @@ void application::update() {
     node_editor();
     ImGui::End();
 
-    // --- Details panel (always open) ---
+    // --- Details panel ---
     inspector();
 
-    // --- Floating toolbar overlay ---
-    toolbar();
+    // --- Status bar (always on top of everything else) ---
+    status_bar();
 
-    // ImGui demo window
     if (m_show_demo_window)
         ImGui::ShowDemoWindow(&m_show_demo_window);
 }
@@ -314,98 +313,111 @@ void application::node_editor() {
     ed::SetCurrentEditor(m_node_editor_context);
     ed::Begin("Level Synth", ImVec2(0.0, 0.0f));
 
-    auto& eng = m_generator.engine();
-    ed::NodeBuilder builder;
-    const ImVec2 icon_size(16, 16);
+    for (int node_id : m_generator.engine().node_ids())
+        draw_node(node_id);
 
-    // --- Render all nodes from engine ---
-    for (int node_id : eng.node_ids()) {
-        auto* n = eng.find_node(node_id);
-        if (!n) continue;
+    draw_links();
+    handle_create();
+    handle_delete();
+    draw_add_node_popup();
 
-        const auto& desc = n->descriptor();
-        ImVec4 header_color = category_color(desc.category);
+    ed::End();
 
-        if (m_first_frame) {
-            // Stagger initial positions so nodes don't overlap
-            ed::SetNodePosition(ed::NodeId(node_id),
-                ImVec2(10.0f + (node_id - 1) * 300.0f, 10.0f));
-        }
-
-        builder.Begin(ed::NodeId(node_id));
-        {
-            builder.Header(header_color);
-                ImGui::TextUnformatted(desc.name.c_str());
-                ImGui::Dummy(ImVec2(80, 0));
-            builder.EndHeader();
-
-            builder.BeginColumns();
-            {
-                // Input pins (left column)
-                ImGui::BeginGroup();
-                for (int i = 0; i < static_cast<int>(desc.pins.size()); i++) {
-                    const auto& pin = desc.pins[i];
-                    if (pin.direction != ls::pin_direction::input) continue;
-
-                    auto pid = make_pin_id(node_id, i);
-                    ImVec4 color = pin_color(pin.type);
-
-                    ed::BeginPin(pid, ed::PinKind::Input);
-                        ed::DrawPinIcon(icon_size, ed::PinIconType::Circle, true, color);
-                        ImGui::SameLine();
-                        ImGui::TextUnformatted(pin.name.c_str());
-                    ed::EndPin();
-                }
-                ImGui::EndGroup();
-
-                ImGui::SameLine(0, 20);
-
-                // Output pins (right column)
-                ImGui::BeginGroup();
-                for (int i = 0; i < static_cast<int>(desc.pins.size()); i++) {
-                    const auto& pin = desc.pins[i];
-                    if (pin.direction != ls::pin_direction::output) continue;
-
-                    auto pid = make_pin_id(node_id, i);
-                    ImVec4 color = pin_color(pin.type);
-
-                    ed::BeginPin(pid, ed::PinKind::Output);
-                        ImGui::TextUnformatted(pin.name.c_str());
-                        ImGui::SameLine();
-                        ed::DrawPinIcon(icon_size, ed::PinIconType::Circle, true, color);
-                    ed::EndPin();
-                }
-                ImGui::EndGroup();
-            }
-            builder.EndColumns();
-        }
-        builder.End();
+    // Update inspector selection (query after End so all interaction is settled)
+    {
+        int count = ed::GetSelectedObjectCount();
+        std::vector<ed::NodeId> sel(count);
+        count = ed::GetSelectedNodes(sel.data(), static_cast<int>(sel.size()));
+        m_inspector_node_id = (count == 1) ? static_cast<int>(sel[0].Get()) : -1;
     }
 
-    // --- Render links from side map ---
+    ed::SetCurrentEditor(nullptr);
+    m_first_frame = false;
+}
+
+void application::draw_node(int node_id) {
+    auto& eng = m_generator.engine();
+    auto* n = eng.find_node(node_id);
+    if (!n) return;
+
+    const auto& desc = n->descriptor();
+    const ImVec4 header_color = category_color(desc.category);
+    const ImVec2 icon_size(16, 16);
+
+    if (m_first_frame) {
+        ed::SetNodePosition(ed::NodeId(node_id),
+            ImVec2(10.0f + (node_id - 1) * 300.0f, 10.0f));
+    }
+
+    ed::NodeBuilder builder;
+    builder.Begin(ed::NodeId(node_id));
+    {
+        builder.Header(header_color);
+            ImGui::TextUnformatted(desc.name.c_str());
+            ImGui::Dummy(ImVec2(80, 0));
+        builder.EndHeader();
+
+        builder.BeginColumns();
+        {
+            // Input pins (left column)
+            ImGui::BeginGroup();
+            for (int i = 0; i < static_cast<int>(desc.pins.size()); i++) {
+                const auto& pin = desc.pins[i];
+                if (pin.direction != ls::pin_direction::input) continue;
+                auto pid = make_pin_id(node_id, i);
+                ImVec4 color = pin_color(pin.type);
+                ed::BeginPin(pid, ed::PinKind::Input);
+                    ed::DrawPinIcon(icon_size, ed::PinIconType::Circle, true, color);
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted(pin.name.c_str());
+                ed::EndPin();
+            }
+            ImGui::EndGroup();
+
+            ImGui::SameLine(0, 20);
+
+            // Output pins (right column)
+            ImGui::BeginGroup();
+            for (int i = 0; i < static_cast<int>(desc.pins.size()); i++) {
+                const auto& pin = desc.pins[i];
+                if (pin.direction != ls::pin_direction::output) continue;
+                auto pid = make_pin_id(node_id, i);
+                ImVec4 color = pin_color(pin.type);
+                ed::BeginPin(pid, ed::PinKind::Output);
+                    ImGui::TextUnformatted(pin.name.c_str());
+                    ImGui::SameLine();
+                    ed::DrawPinIcon(icon_size, ed::PinIconType::Circle, true, color);
+                ed::EndPin();
+            }
+            ImGui::EndGroup();
+        }
+        builder.EndColumns();
+    }
+    builder.End();
+}
+
+void application::draw_links() {
+    auto& eng = m_generator.engine();
     for (const auto& [link_id, wv] : m_link_to_wire) {
-        // Find output pin ID
         auto* from_node = eng.find_node(wv.from_node);
-        auto* to_node = eng.find_node(wv.to_node);
+        auto* to_node   = eng.find_node(wv.to_node);
         if (!from_node || !to_node) continue;
 
         const auto& from_desc = from_node->descriptor();
-        const auto& to_desc = to_node->descriptor();
+        const auto& to_desc   = to_node->descriptor();
 
         ed::PinId from_pin_id, to_pin_id;
         ImVec4 link_color(1, 1, 1, 1);
 
-        // Find output pin index by name
         for (int i = 0; i < static_cast<int>(from_desc.pins.size()); i++) {
             if (from_desc.pins[i].name == wv.from_pin &&
                 from_desc.pins[i].direction == ls::pin_direction::output) {
                 from_pin_id = make_pin_id(wv.from_node, i);
-                link_color = pin_color(from_desc.pins[i].type);
+                link_color  = pin_color(from_desc.pins[i].type);
                 break;
             }
         }
 
-        // Find input pin index by name
         for (int i = 0; i < static_cast<int>(to_desc.pins.size()); i++) {
             if (to_desc.pins[i].name == wv.to_pin &&
                 to_desc.pins[i].direction == ls::pin_direction::input) {
@@ -416,20 +428,20 @@ void application::node_editor() {
 
         ed::Link(ed::LinkId(link_id), from_pin_id, to_pin_id, link_color, 2.0f);
     }
+}
 
-    // --- Handle new connections ---
+void application::handle_create() {
+    auto& eng = m_generator.engine();
     if (ed::BeginCreate()) {
         ed::PinId input_pin_id, output_pin_id;
         if (ed::QueryNewLink(&input_pin_id, &output_pin_id)) {
             if (input_pin_id && output_pin_id) {
-                auto input_info = resolve_pin(input_pin_id);
+                auto input_info  = resolve_pin(input_pin_id);
                 auto output_info = resolve_pin(output_pin_id);
 
-                // Determine which is input and which is output
-                // (user might drag from either direction)
                 const ls::pin_descriptor* src = nullptr;
                 const ls::pin_descriptor* dst = nullptr;
-                int src_node, dst_node;
+                int src_node = 0, dst_node = 0;
                 std::string src_pin, dst_pin;
 
                 if (input_info.desc && input_info.desc->direction == ls::pin_direction::output &&
@@ -442,15 +454,10 @@ void application::node_editor() {
                     src = output_info.desc; src_node = output_info.node_id; src_pin = src->name;
                 }
 
-                bool can_connect = src && dst && src->type == dst->type;
-
-                if (can_connect) {
+                if (src && dst && src->type == dst->type) {
                     if (ed::AcceptNewItem()) {
-                        ls::wire w{ src_node, src_pin, dst_node, dst_pin };
-                        eng.add_wire(w);
-
-                        int link_id = m_next_link_id++;
-                        m_link_to_wire[link_id] = { src_node, src_pin, dst_node, dst_pin };
+                        eng.add_wire({ src_node, src_pin, dst_node, dst_pin });
+                        m_link_to_wire[m_next_link_id++] = { src_node, src_pin, dst_node, dst_pin };
                     }
                 } else {
                     ed::RejectNewItem(ImVec4(1, 0, 0, 1), 2.0f);
@@ -459,10 +466,11 @@ void application::node_editor() {
         }
     }
     ed::EndCreate();
+}
 
-    // --- Handle deletions ---
+void application::handle_delete() {
+    auto& eng = m_generator.engine();
     if (ed::BeginDelete()) {
-        // Link deletion
         ed::LinkId deleted_link_id;
         while (ed::QueryDeletedLink(&deleted_link_id)) {
             if (ed::AcceptDeletedItem()) {
@@ -470,41 +478,35 @@ void application::node_editor() {
                 auto it = m_link_to_wire.find(lid);
                 if (it != m_link_to_wire.end()) {
                     const auto& wv = it->second;
-                    eng.remove_wire(wv.from_node, wv.from_pin,
-                                    wv.to_node, wv.to_pin);
+                    eng.remove_wire(wv.from_node, wv.from_pin, wv.to_node, wv.to_pin);
                     m_link_to_wire.erase(it);
                 }
             }
         }
 
-        // Node deletion
         ed::NodeId deleted_node_id;
         while (ed::QueryDeletedNode(&deleted_node_id)) {
             if (ed::AcceptDeletedItem()) {
                 int nid = static_cast<int>(deleted_node_id.Get());
-
-                // Remove associated links
                 std::erase_if(m_link_to_wire, [&](const auto& pair) {
-                    const auto& wv = pair.second;
-                    return wv.from_node == nid || wv.to_node == nid;
+                    return pair.second.from_node == nid || pair.second.to_node == nid;
                 });
-
                 eng.remove_node(nid);
             }
         }
     }
     ed::EndDelete();
+}
 
-    // --- Right-click context menu for adding nodes ---
-    // Detect right-click before Suspend so we have the canvas-space position,
-    // but defer OpenPopup until after Suspend so ImGui anchors the popup in
-    // normal screen coordinates (not the canvas-transformed space).
-    bool open_add_node_popup = ed::ShowBackgroundContextMenu();
-    if (open_add_node_popup)
+void application::draw_add_node_popup() {
+    auto& eng = m_generator.engine();
+
+    bool open_popup = ed::ShowBackgroundContextMenu();
+    if (open_popup)
         m_popup_canvas_pos = ed::ScreenToCanvas(ImGui::GetMousePos());
 
     ed::Suspend();
-    if (open_add_node_popup)
+    if (open_popup)
         ImGui::OpenPopup("##add_node");
     if (ImGui::BeginPopup("##add_node")) {
         ImGui::TextUnformatted("Add Node");
@@ -513,7 +515,6 @@ void application::node_editor() {
         auto& reg = ls::node_registry::instance();
         auto types = reg.registered_types();
 
-        // Group by category, sorted for stable ordering
         std::map<std::string, std::vector<std::string>> by_category;
         for (const auto& type_name : types)
             by_category[reg.descriptor(type_name).category].push_back(type_name);
@@ -538,69 +539,21 @@ void application::node_editor() {
         ImGui::EndPopup();
     }
     ed::Resume();
-
-    ed::End();
-
-    // Update inspector selection (query after End so all interaction is settled)
-    {
-        int count = ed::GetSelectedObjectCount();
-        std::vector<ed::NodeId> sel(count);
-        count = ed::GetSelectedNodes(sel.data(), static_cast<int>(sel.size()));
-        m_inspector_node_id = (count == 1) ? static_cast<int>(sel[0].Get()) : -1;
-    }
-
-    ed::SetCurrentEditor(nullptr);
-    m_first_frame = false;
 }
 
-void application::toolbar() {
-    auto& io = ImGui::GetIO();
-    const float scale = 1.0f;
+void application::menu_bar() {
+    if (!ImGui::BeginMainMenuBar())
+        return;
 
-    // Toolbar dimensions
-    const float toolbar_height = 36.0f * scale;
-    const float toolbar_padding = 6.0f * scale;
-    const float button_size = 24.0f * scale;
-
-    // Position at top-center
-    float toolbar_width = 420.0f * scale;
-    float toolbar_x = (m_width - toolbar_width) * 0.5f;
-    float toolbar_y = 12.0f * scale;
-
-    draw_window_shadow(ImVec2(toolbar_x, toolbar_y), ImVec2(toolbar_width, toolbar_height));
-    ImGui::SetNextWindowPos(ImVec2(toolbar_x, toolbar_y), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(toolbar_width, toolbar_height), ImGuiCond_Always);
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f * scale);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(toolbar_padding, toolbar_padding));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, m_colors[editor::Color_ToolbarBg]);
-    ImGui::PushStyleColor(ImGuiCol_Border, m_colors[editor::Color_ToolbarBorder]);
-
-    ImGui::Begin("##toolbar", nullptr,
-        ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_NoScrollWithMouse |
-        ImGuiWindowFlags_NoCollapse);
-
-    // Transparent button style
+    // Hamburger button — opens the main menu popup
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_colors[editor::Color_ToolbarButtonHovered]);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_colors[editor::Color_ToolbarButtonActive]);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f * scale);
+    const float btn_early = ImGui::GetFrameHeight();
+    if (ImGui::Button(phosphor::PH_HAMBURGER, ImVec2(btn_early, btn_early)))
+        ImGui::OpenPopup("##main_menu");
+    ImGui::PopStyleColor();
 
-    // Hamburger menu button
-    if (ImGui::Button(ICON_FI_BARS, ImVec2(button_size, button_size)))
-    {
-        ImGui::OpenPopup("MainMenu");
-    }
-
-    if (ImGui::BeginPopup("MainMenu"))
-    {
-        if (ImGui::BeginMenu("File"))
-        {
+    if (ImGui::BeginPopup("##main_menu")) {
+        if (ImGui::BeginMenu("File")) {
             ImGui::MenuItem("New");
             ImGui::MenuItem("Open...");
             ImGui::MenuItem("Save");
@@ -610,8 +563,7 @@ void application::toolbar() {
                 m_running = false;
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("Edit"))
-        {
+        if (ImGui::BeginMenu("Edit")) {
             ImGui::MenuItem("Undo");
             ImGui::MenuItem("Redo");
             ImGui::Separator();
@@ -620,108 +572,118 @@ void application::toolbar() {
             ImGui::MenuItem("Paste");
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("Help"))
-        {
-            if (ImGui::MenuItem("ImGui Demo", nullptr, m_show_demo_window))
-                m_show_demo_window = !m_show_demo_window;
-            ImGui::Separator();
+        if (ImGui::BeginMenu("View")) {
+            const char* theme_label = m_dark_theme ? "Switch to Light Theme" : "Switch to Dark Theme";
+            if (ImGui::MenuItem(theme_label)) {
+                m_dark_theme = !m_dark_theme;
+                apply_theme();
+            }
+            ImGui::MenuItem("ImGui Demo", nullptr, &m_show_demo_window);
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Help")) {
             ImGui::MenuItem("About Level Synth");
             ImGui::EndMenu();
         }
         ImGui::EndPopup();
     }
 
-    ImGui::SameLine();
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-    ImGui::SameLine();
+    ImGui::Spacing();
+
+    const float btn = ImGui::GetFrameHeight();
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
 
     // Theme toggle
-    const char* theme_label = m_dark_theme ? ICON_FI_DARK_THEME : ICON_FI_BRIGHTNESS_HIGH;
-    if (ImGui::Button(theme_label, ImVec2(button_size, button_size)))
-    {
+    const char* theme_icon = m_dark_theme ? phosphor::PH_MOON : phosphor::PH_SUN;
+    if (ImGui::Button(theme_icon, ImVec2(btn, btn))) {
         m_dark_theme = !m_dark_theme;
         apply_theme();
     }
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Toggle theme");
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Toggle theme");
 
     ImGui::SameLine();
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
     ImGui::SameLine();
 
-    // Zoom controls.
-    // GetCurrentZoom() returns InvScale (= 1/Scale). SetCurrentZoom(v) sets
-    // Scale = 1/v. So a *smaller* InvScale value means more zoomed in.
-    // Multiply InvScale by > 1 to zoom out, by < 1 to zoom in.
-    // Apparent magnification shown to the user = 1/InvScale * 100 %.
+    // Zoom controls
     ed::SetCurrentEditor(m_node_editor_context);
     float inv_scale = ed::GetCurrentZoom();
 
-    if (ImGui::Button(ICON_FI_ZOOM_OUT, ImVec2(button_size, button_size)))
+    if (ImGui::Button(phosphor::PH_MAGNIFYING_GLASS_MINUS, ImVec2(btn, btn)))
         ed::SetCurrentZoom(inv_scale * 1.25f);
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Zoom out");
-
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Zoom out");
     ImGui::SameLine();
 
-    // Zoom percentage display (click to reset to 100%)
     char zoom_buf[16];
     snprintf(zoom_buf, sizeof(zoom_buf), "%d%%", (int)(100.0f / inv_scale + 0.5f));
-    if (ImGui::Button(zoom_buf, ImVec2(0, button_size)))
+    if (ImGui::Button(zoom_buf, ImVec2(0, btn)))
         ed::SetCurrentZoom(1.0f);
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Reset zoom to 100%%");
-
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Reset zoom to 100%%");
     ImGui::SameLine();
 
-    if (ImGui::Button(ICON_FI_ZOOM_IN, ImVec2(button_size, button_size)))
+    if (ImGui::Button(phosphor::PH_MAGNIFYING_GLASS_PLUS, ImVec2(btn, btn)))
         ed::SetCurrentZoom(inv_scale * 0.8f);
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Zoom in");
-
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Zoom in");
     ImGui::SameLine();
 
-    // Fit to content
-    if (ImGui::Button(ICON_FI_ZOOM_FIT, ImVec2(button_size, button_size)))
+    if (ImGui::Button(phosphor::PH_FRAME_CORNERS, ImVec2(btn, btn)))
         ed::NavigateToContent();
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Fit to content");
-
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Fit to content");
     ed::SetCurrentEditor(nullptr);
 
     ImGui::SameLine();
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
     ImGui::SameLine();
 
-    // Evaluate button
-    if (ImGui::Button(ICON_FI_PLAY, ImVec2(button_size, button_size)))
+    if (ImGui::Button(phosphor::PH_PLAY, ImVec2(btn, btn)))
         m_generator.engine().evaluate(0);
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Evaluate graph");
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Evaluate graph");
 
-    ImGui::SameLine();
+    ImGui::PopStyleColor(); // Button
 
-    // ImGui demo window toggle
-    if (ImGui::Button(ICON_FI_WINDOW, ImVec2(button_size, button_size)))
-        m_show_demo_window = !m_show_demo_window;
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("ImGui demo");
+    ImGui::EndMainMenuBar();
+}
 
-    ImGui::SameLine();
-    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-    ImGui::SameLine();
+void application::status_bar() {
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x, vp->WorkPos.y + vp->WorkSize.y - k_status_bar_height));
+    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, k_status_bar_height));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 3.0f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, m_colors[editor::Color_StatusBarBg]);
+    ImGui::Begin("##statusbar", nullptr,
+        ImGuiWindowFlags_NoTitleBar        | ImGuiWindowFlags_NoCollapse          |
+        ImGuiWindowFlags_NoResize          | ImGuiWindowFlags_NoMove              |
+        ImGuiWindowFlags_NoScrollbar       | ImGuiWindowFlags_NoScrollWithMouse   |
+        ImGuiWindowFlags_NoSavedSettings   | ImGuiWindowFlags_NoBringToFrontOnFocus |
+        ImGuiWindowFlags_NoDocking);
+    ImGui::PopStyleVar(3);
+    ImGui::PopStyleColor();
 
-    // FPS display
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * scale);
-    ImGui::TextDisabled("%.0f fps", io.Framerate);
+    auto& eng = m_generator.engine();
+    int node_count = static_cast<int>(eng.node_ids().size());
+    int link_count = static_cast<int>(m_link_to_wire.size());
 
-    ImGui::PopStyleVar(1); // FrameRounding
-    ImGui::PopStyleColor(3); // Button colors
+    ImGui::TextDisabled("%d nodes  |  %d links", node_count, link_count);
+
+    if (m_inspector_node_id != -1) {
+        auto* n = eng.find_node(m_inspector_node_id);
+        if (n) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("  |  %s", n->descriptor().name.c_str());
+        }
+    }
+
+    // Right-aligned FPS
+    char fps_buf[32];
+    snprintf(fps_buf, sizeof(fps_buf), "%.0f fps", ImGui::GetIO().Framerate);
+    float fps_w = ImGui::CalcTextSize(fps_buf).x + 8.0f;
+    ImGui::SameLine(ImGui::GetWindowWidth() - fps_w);
+    ImGui::TextDisabled("%s", fps_buf);
 
     ImGui::End();
-
-    ImGui::PopStyleColor(2); // WindowBg, Border
-    ImGui::PopStyleVar(3); // WindowRounding, WindowPadding, WindowBorderSize
 }
 
 void application::set_node_editor_style() {
@@ -835,10 +797,8 @@ void application::set_light_theme() {
     m_colors[editor::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
     m_colors[editor::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
     m_colors[editor::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
-    m_colors[editor::Color_ToolbarBg]           = ImVec4(0.95f, 0.95f, 0.96f, 0.92f);
-    m_colors[editor::Color_ToolbarBorder]       = ImVec4(0.70f, 0.70f, 0.72f, 0.60f);
-    m_colors[editor::Color_ToolbarButtonHovered]= ImVec4(0.80f, 0.80f, 0.82f, 0.60f);
-    m_colors[editor::Color_ToolbarButtonActive] = ImVec4(0.70f, 0.70f, 0.72f, 0.80f);
+    m_colors[editor::Color_StatusBarBg]          = ImVec4(0.95f, 0.95f, 0.96f, 0.92f);
+    m_colors[editor::Color_StatusBarBorder]       = ImVec4(0.70f, 0.70f, 0.72f, 0.60f);
 
     // Node editor style
     set_node_editor_style();
@@ -939,10 +899,8 @@ void application::set_dark_theme() {
     m_colors[editor::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
     m_colors[editor::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
     m_colors[editor::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
-    m_colors[editor::Color_ToolbarBg]           = ImVec4(0.18f, 0.18f, 0.19f, 0.92f);
-    m_colors[editor::Color_ToolbarBorder]       = ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
-    m_colors[editor::Color_ToolbarButtonHovered]= ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
-    m_colors[editor::Color_ToolbarButtonActive] = ImVec4(0.35f, 0.35f, 0.37f, 0.80f);
+    m_colors[editor::Color_StatusBarBg]          = ImVec4(0.18f, 0.18f, 0.19f, 0.92f);
+    m_colors[editor::Color_StatusBarBorder]       = ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
 
     // Node editor style
     set_node_editor_style();
@@ -1046,16 +1004,3 @@ void application::inspector() {
     ImGui::End();
 }
 
-void application::draw_window_shadow(ImVec2 pos, ImVec2 size, float rounding) {
-    ImDrawList* bg = ImGui::GetBackgroundDrawList();
-    const float offset = 8.0f;
-    // Four passes: outermost (most transparent) to innermost (most opaque)
-    for (int i = 4; i >= 1; i--) {
-        float spread = offset * static_cast<float>(i) * 0.35f;
-        int   alpha  = static_cast<int>(255 * 0.055f * static_cast<float>(5 - i));
-        bg->AddRectFilled(
-            ImVec2(pos.x - spread + offset, pos.y - spread + offset),
-            ImVec2(pos.x + size.x + spread + offset, pos.y + size.y + spread + offset),
-            IM_COL32(0, 0, 0, alpha), rounding + spread);
-    }
-}

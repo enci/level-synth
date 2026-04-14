@@ -34,15 +34,24 @@ private:
     void update();
     void render();
     void cleanup();
+
+    // --- UI sections ---
+    void menu_bar();
+    void status_bar();
     void node_editor();
-    void toolbar();
+    void inspector();
+
+    // --- Node editor sub-routines ---
+    void draw_node(int node_id);
+    void draw_links();
+    void handle_create();
+    void handle_delete();
+    void draw_add_node_popup();
 
     void set_light_theme();
     void set_dark_theme();
     void set_node_editor_style();
     void apply_theme();
-    void inspector();
-    void draw_window_shadow(ImVec2 pos, ImVec2 size, float rounding = 10.0f);
 
     SDL_Window* m_window;
     SDL_Renderer* m_renderer;
@@ -58,7 +67,8 @@ private:
     bool m_dark_theme = true;
     bool m_show_demo_window = false;
     int m_redraw_frames = 0;           // extra frames to render after activity
-    static constexpr int k_cooldown_frames = 3;  // frames to keep rendering after last event
+    static constexpr int   k_cooldown_frames    = 3;     // frames to keep rendering after last event
+    static constexpr float k_status_bar_height  = 22.0f; // height of the fixed bottom status bar
     static Uint32 s_redraw_event_type; // custom SDL event for cross-thread wake-up
 
     ImVec4 m_colors[editor::Color_COUNT];

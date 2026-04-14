@@ -14,11 +14,9 @@ enum Color_ {
     Color_HeaderProcess,    // orange
     Color_HeaderOutput,     // blue
 
-    // Toolbar colors
-    Color_ToolbarBg,
-    Color_ToolbarBorder,
-    Color_ToolbarButtonHovered,
-    Color_ToolbarButtonActive,
+    // Status bar colors
+    Color_StatusBarBg,
+    Color_StatusBarBorder,
 
     Color_COUNT
 };
@@ -30,10 +28,8 @@ inline const char* GetColorName(Color_ idx) {
     case Color_HeaderInput:         return "Header: Input";
     case Color_HeaderProcess:       return "Header: Process";
     case Color_HeaderOutput:        return "Header: Output";
-    case Color_ToolbarBg:           return "Toolbar: Background";
-    case Color_ToolbarBorder:       return "Toolbar: Border";
-    case Color_ToolbarButtonHovered: return "Toolbar: Button Hovered";
-    case Color_ToolbarButtonActive: return "Toolbar: Button Active";
+    case Color_StatusBarBg:          return "Status Bar: Background";
+    case Color_StatusBarBorder:      return "Status Bar: Border";
     default:                        return "Unknown";
     }
 }
