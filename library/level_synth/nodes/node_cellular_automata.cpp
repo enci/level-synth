@@ -2,6 +2,10 @@
 #include "../eval_context.hpp"
 #include "../attribute_grid.hpp"
 #include "../node_registry.hpp"
+#ifdef LS_EDITOR
+#include <imgui.h>
+#include <cstring>
+#endif
 
 namespace ls {
 
@@ -86,8 +90,18 @@ eval_task node_cellular_automata::evaluate(eval_context& ctx) {
 
 #ifdef LS_EDITOR
 void node_cellular_automata::draw_ui() {
-    // TODO: sliders for default_iterations, default_birth, default_death
-    // TODO: text input for attribute_name
+    int iter  = static_cast<int>(default_iterations);
+    int birth = static_cast<int>(default_birth);
+    int death = static_cast<int>(default_death);
+    if (ImGui::DragInt("Iterations", &iter,  1, 1, 100)) default_iterations = iter;
+    if (ImGui::DragInt("Birth",      &birth, 1, 0, 8))   default_birth      = birth;
+    if (ImGui::DragInt("Death",      &death, 1, 0, 8))   default_death      = death;
+
+    char buf[128];
+    std::strncpy(buf, attribute_name.c_str(), sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    if (ImGui::InputText("Attribute", buf, sizeof(buf)))
+        attribute_name = buf;
 }
 #endif
 

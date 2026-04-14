@@ -1,6 +1,10 @@
 #include "node_output_number.hpp"
 #include "../eval_context.hpp"
 #include "../node_registry.hpp"
+#ifdef LS_EDITOR
+#include <imgui.h>
+#include <cstring>
+#endif
 
 namespace ls {
 
@@ -23,6 +27,11 @@ eval_task node_output_number::evaluate(eval_context& ctx) {
 
 #ifdef LS_EDITOR
 void node_output_number::draw_ui() {
+    char buf[128];
+    std::strncpy(buf, output_name.c_str(), sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    if (ImGui::InputText("Name", buf, sizeof(buf)))
+        output_name = buf;
 }
 #endif
 

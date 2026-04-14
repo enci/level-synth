@@ -2,7 +2,10 @@
 #include "../eval_context.hpp"
 #include "../attribute_grid.hpp"
 #include "../node_registry.hpp"
-
+#ifdef LS_EDITOR
+#include <imgui.h>
+#include <cstring>
+#endif
 #include <random>
 
 namespace ls {
@@ -51,7 +54,20 @@ eval_task node_noise_grid::evaluate(eval_context& ctx) {
 }
 
 #ifdef LS_EDITOR
-void node_noise_grid::draw_ui() {}
+void node_noise_grid::draw_ui() {
+    int w = static_cast<int>(default_width);
+    int h = static_cast<int>(default_height);
+    float density = static_cast<float>(default_density);
+    if (ImGui::DragInt("Width",   &w, 1, 1, 512))              default_width   = w;
+    if (ImGui::DragInt("Height",  &h, 1, 1, 512))              default_height  = h;
+    if (ImGui::SliderFloat("Density", &density, 0.0f, 1.0f))   default_density = density;
+
+    char buf[128];
+    std::strncpy(buf, attribute_name.c_str(), sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    if (ImGui::InputText("Attribute", buf, sizeof(buf)))
+        attribute_name = buf;
+}
 #endif
 
 LS_REGISTER_NODE(node_noise_grid);

@@ -46,10 +46,12 @@ public:
     int current_node_id() const;
     std::optional<eval_step> current_step() const;
 
+    // Marks a node and all its downstream dependents as needing re-evaluation.
+    void invalidate(int node_id);
+
 private:
     std::vector<int> topological_sort() const;
     eval_context build_context(int node_id, int master_seed) const;
-    void invalidate(int node_id);
 
     int m_next_id = 1;
     std::unordered_map<int, std::unique_ptr<node>> m_nodes;

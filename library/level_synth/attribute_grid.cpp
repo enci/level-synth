@@ -29,6 +29,14 @@ void attribute_grid::set(const std::string& name, int x, int y, int value) {
     attr->data[y * m_width + x] = value;
 }
 
+std::vector<std::string> attribute_grid::attribute_names() const {
+    std::vector<std::string> names;
+    names.reserve(m_attrs.size());
+    for (const auto& a : m_attrs)
+        names.push_back(a.name);
+    return names;
+}
+
 std::span<int> attribute_grid::data(const std::string& name) {
     auto* attr = find_attr(name);
     if (!attr) throw std::runtime_error("Unknown attribute: " + name);

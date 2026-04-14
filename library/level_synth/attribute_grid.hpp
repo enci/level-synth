@@ -22,6 +22,8 @@ public:
     int get(const std::string& name, int x, int y) const;
     void set(const std::string& name, int x, int y, int value);
 
+    std::vector<std::string> attribute_names() const;
+
     std::span<int> data(const std::string& name);
     std::span<const int> data(const std::string& name) const;
 
