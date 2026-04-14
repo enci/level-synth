@@ -12,6 +12,14 @@
 
 #include <level_synth/nodes/node_create_grid.hpp>
 #include <level_synth/nodes/node_cellular_automata.hpp>
+#include <level_synth/nodes/node_input_number.hpp>
+#include <level_synth/nodes/node_noise_grid.hpp>
+#include <level_synth/nodes/node_output_grid.hpp>
+#include <level_synth/nodes/node_output_number.hpp>
+#include <level_synth/node_registry.hpp>
+#include <level_synth/attribute_grid.hpp>
+#include <map>
+#include <algorithm>
 
 namespace ed = ax::NodeEditor;
 
@@ -50,10 +58,10 @@ void application::init_sdl() {
     auto display = SDL_GetDisplays(&display_count);
     if (!display)
         throw std::runtime_error("SDL_GetDisplays Error: " + std::string(SDL_GetError()));
-    auto displayMode = SDL_GetCurrentDisplayMode(display[0]);
-    if (!displayMode)
+    auto display_mode = SDL_GetCurrentDisplayMode(display[0]);
+    if (!display_mode)
         throw std::runtime_error("SDL_GetCurrentDisplayMode Error: " + std::string(SDL_GetError()));
-    m_ui_scale = displayMode->pixel_density;
+    m_ui_scale = display_mode->pixel_density;
 
     m_window = SDL_CreateWindow(m_title.c_str(), m_width, m_height, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!m_window) {
@@ -80,6 +88,7 @@ void application::init_imgui() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     ImGui_ImplSDL3_InitForSDLRenderer(m_window, m_renderer);
     ImGui_ImplSDLRenderer3_Init(m_renderer);
@@ -88,11 +97,11 @@ void application::init_imgui() {
     io.Fonts->SetFontLoader(loader);
     io.Fonts->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_ForceAutoHint;
 
-    const float font_size = 16.0f;
+    constexpr float k_font_size = 16.0f;
     ImFontConfig config;
     config.OversampleH = 8;
     config.OversampleV = 8;
-    io.Fonts->AddFontFromFileTTF("../resources/selawk.ttf", font_size, &config);
+    io.Fonts->AddFontFromFileTTF("../resources/selawk.ttf", k_font_size, &config);
 
     // Merge Fluent System Icons into the main font.
     // OversampleH/V = 1: FreeType handles its own antialiasing, so oversampling
@@ -107,9 +116,9 @@ void application::init_imgui() {
         icon_config.MergeMode = true;
         icon_config.OversampleH = 1;
         icon_config.OversampleV = 1;
-        icon_config.GlyphOffset = ImVec2(0.0f, font_size / 4.0f);
+        icon_config.GlyphOffset = ImVec2(0.0f, k_font_size / 4.0f);
         io.Fonts->AddFontFromFileTTF("../resources/FluentSystemIcons-Regular.ttf",
-            font_size, &icon_config, xs::tools::get_fluent_glyph_ranges());
+            k_font_size, &icon_config, xs::tools::get_fluent_glyph_ranges());
     }
 }
 
@@ -123,16 +132,17 @@ void application::init_node_editor() {
     m_node_editor_context = ed::CreateEditor(&config);
     ed::SetCurrentEditor(m_node_editor_context);
 
-    // Add test nodes to the engine
+    // Test graph: Noise Grid -> Cellular Automata -> Output Grid
     auto& eng = m_generator.engine();
-    int create_id = eng.add_node(std::make_unique<ls::node_create_grid>());
-    int ca_id = eng.add_node(std::make_unique<ls::node_cellular_automata>());
+    int noise_id = eng.add_node(std::make_unique<ls::node_noise_grid>());
+    int ca_id    = eng.add_node(std::make_unique<ls::node_cellular_automata>());
+    int out_id   = eng.add_node(std::make_unique<ls::node_output_grid>());
 
-    // Wire them: Create Grid "grid" -> Cellular Automata "input"
-    eng.add_wire({ create_id, "grid", ca_id, "input" });
+    eng.add_wire({ noise_id, "grid",   ca_id,  "input" });
+    eng.add_wire({ ca_id,    "output", out_id, "value" });
 
-    // Register the wire in our visual side map
-    m_link_to_wire[m_next_link_id++] = { create_id, "grid", ca_id, "input" };
+    m_link_to_wire[m_next_link_id++] = { noise_id, "grid",   ca_id,  "input" };
+    m_link_to_wire[m_next_link_id++] = { ca_id,    "output", out_id, "value" };
 }
 
 void application::run() {
@@ -192,28 +202,46 @@ void application::update() {
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    // Fullscreen node editor window
-    ImGui::SetNextWindowSize(ImVec2(m_width, m_height), ImGuiCond_Always);
+    // --- Fullscreen DockSpace host ---
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->WorkPos);
+    ImGui::SetNextWindowSize(vp->WorkSize);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
-
-    ImGui::Begin("Level Synth", nullptr,
-        ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_NoBringToFrontOnFocus);
-
-    node_editor();
-
-    ImGui::End();
+    ImGui::Begin("##dockhost", nullptr,
+        ImGuiWindowFlags_NoTitleBar    | ImGuiWindowFlags_NoCollapse  |
+        ImGuiWindowFlags_NoResize      | ImGuiWindowFlags_NoMove      |
+        ImGuiWindowFlags_NoScrollbar   | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoDocking);
     ImGui::PopStyleVar(2);
 
-    // Floating toolbar overlay
+    ImGuiID dsid = ImGui::GetID("##dockspace");
+    if (!ImGui::DockBuilderGetNode(dsid)) {
+        ImGui::DockBuilderRemoveNode(dsid);
+        ImGui::DockBuilderAddNode(dsid, ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(dsid, vp->WorkSize);
+        ImGuiID bottom, top = dsid;
+        bottom = ImGui::DockBuilderSplitNode(top, ImGuiDir_Down, 0.28f, nullptr, &top);
+        ImGui::DockBuilderDockWindow("Node Editor", top);
+        ImGui::DockBuilderDockWindow("Details", bottom);
+        ImGui::DockBuilderFinish(dsid);
+    }
+    ImGui::DockSpace(dsid, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
+    ImGui::End();
+
+    // --- Node Editor window ---
+    ImGui::Begin("Node Editor", nullptr,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    node_editor();
+    ImGui::End();
+
+    // --- Details panel (always open) ---
+    inspector();
+
+    // --- Floating toolbar overlay ---
     toolbar();
 
-    // ImGui demo window (for theme tweaking)
+    // ImGui demo window
     if (m_show_demo_window)
         ImGui::ShowDemoWindow(&m_show_demo_window);
 }
@@ -310,10 +338,6 @@ void application::node_editor() {
                 ImGui::TextUnformatted(desc.name.c_str());
                 ImGui::Dummy(ImVec2(80, 0));
             builder.EndHeader();
-
-#ifdef LS_EDITOR
-            n->draw_ui();
-#endif
 
             builder.BeginColumns();
             {
@@ -471,7 +495,60 @@ void application::node_editor() {
     }
     ed::EndDelete();
 
+    // --- Right-click context menu for adding nodes ---
+    // Detect right-click before Suspend so we have the canvas-space position,
+    // but defer OpenPopup until after Suspend so ImGui anchors the popup in
+    // normal screen coordinates (not the canvas-transformed space).
+    bool open_add_node_popup = ed::ShowBackgroundContextMenu();
+    if (open_add_node_popup)
+        m_popup_canvas_pos = ed::ScreenToCanvas(ImGui::GetMousePos());
+
+    ed::Suspend();
+    if (open_add_node_popup)
+        ImGui::OpenPopup("##add_node");
+    if (ImGui::BeginPopup("##add_node")) {
+        ImGui::TextUnformatted("Add Node");
+        ImGui::Separator();
+
+        auto& reg = ls::node_registry::instance();
+        auto types = reg.registered_types();
+
+        // Group by category, sorted for stable ordering
+        std::map<std::string, std::vector<std::string>> by_category;
+        for (const auto& type_name : types)
+            by_category[reg.descriptor(type_name).category].push_back(type_name);
+
+        for (auto& [category, type_names] : by_category) {
+            std::sort(type_names.begin(), type_names.end(), [&](const auto& a, const auto& b) {
+                return reg.descriptor(a).name < reg.descriptor(b).name;
+            });
+
+            if (ImGui::BeginMenu(category.c_str())) {
+                for (const auto& type_name : type_names) {
+                    const auto& desc = reg.descriptor(type_name);
+                    if (ImGui::MenuItem(desc.name.c_str())) {
+                        int nid = eng.add_node(reg.create(type_name));
+                        ed::SetNodePosition(ed::NodeId(nid), m_popup_canvas_pos);
+                    }
+                }
+                ImGui::EndMenu();
+            }
+        }
+
+        ImGui::EndPopup();
+    }
+    ed::Resume();
+
     ed::End();
+
+    // Update inspector selection (query after End so all interaction is settled)
+    {
+        int count = ed::GetSelectedObjectCount();
+        std::vector<ed::NodeId> sel(count);
+        count = ed::GetSelectedNodes(sel.data(), static_cast<int>(sel.size()));
+        m_inspector_node_id = (count == 1) ? static_cast<int>(sel[0].Get()) : -1;
+    }
+
     ed::SetCurrentEditor(nullptr);
     m_first_frame = false;
 }
@@ -486,10 +563,11 @@ void application::toolbar() {
     const float button_size = 24.0f * scale;
 
     // Position at top-center
-    float toolbar_width = 380.0f * scale;
+    float toolbar_width = 420.0f * scale;
     float toolbar_x = (m_width - toolbar_width) * 0.5f;
     float toolbar_y = 12.0f * scale;
 
+    draw_window_shadow(ImVec2(toolbar_x, toolbar_y), ImVec2(toolbar_width, toolbar_height));
     ImGui::SetNextWindowPos(ImVec2(toolbar_x, toolbar_y), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(toolbar_width, toolbar_height), ImGuiCond_Always);
 
@@ -615,6 +693,24 @@ void application::toolbar() {
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
     ImGui::SameLine();
 
+    // Evaluate button
+    if (ImGui::Button(ICON_FI_PLAY, ImVec2(button_size, button_size)))
+        m_generator.engine().evaluate(0);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Evaluate graph");
+
+    ImGui::SameLine();
+
+    // ImGui demo window toggle
+    if (ImGui::Button(ICON_FI_WINDOW, ImVec2(button_size, button_size)))
+        m_show_demo_window = !m_show_demo_window;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("ImGui demo");
+
+    ImGui::SameLine();
+    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+    ImGui::SameLine();
+
     // FPS display
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * scale);
     ImGui::TextDisabled("%.0f fps", io.Framerate);
@@ -674,9 +770,6 @@ void application::set_light_theme() {
     style.FrameRounding = 5.0f;
     style.ChildRounding = 5.0f;
     style.GrabRounding = 5.0f;
-    style.WindowShadowSize = 35.0f;
-    style.WindowShadowOffsetAngle = 0.0f;
-    style.WindowShadowOffsetDist = 0.0f;
 
     ImVec4* colors = style.Colors;
     colors[ImGuiCol_Text]                   = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);
@@ -735,7 +828,6 @@ void application::set_light_theme() {
     colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
     colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
     colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
-    colors[ImGuiCol_WindowShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.40f);
 
     // Editor custom colors
     m_colors[editor::Color_PinNumber]          = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
@@ -782,9 +874,6 @@ void application::set_dark_theme() {
     style.FrameRounding = 5.0f;
     style.ChildRounding = 5.0f;
     style.GrabRounding = 5.0f;
-    style.WindowShadowSize = 35.0f;
-    style.WindowShadowOffsetAngle = 0.0f;
-    style.WindowShadowOffsetDist = 0.0f;
 
     ImVec4* colors = style.Colors;
     colors[ImGuiCol_Text]                   = ImVec4(0.85f, 0.85f, 0.85f, 1.00f);
@@ -843,7 +932,6 @@ void application::set_dark_theme() {
     colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
     colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
     colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
-    colors[ImGuiCol_WindowShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.70f);
 
     // Editor custom colors
     m_colors[editor::Color_PinNumber]          = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
@@ -881,4 +969,93 @@ void application::set_dark_theme() {
     edStyle.Colors[StyleColor_FlowMarker]          = ImColor(255, 128, 64, 255);
     edStyle.Colors[StyleColor_GroupBg]             = ImColor(0, 0, 0, 120);
     edStyle.Colors[StyleColor_GroupBorder]         = ImColor(255, 255, 255, 24);
+}
+
+void application::inspector() {
+    ImGui::Begin("Details");
+
+    if (m_inspector_node_id == -1) {
+        ImGui::TextDisabled("Select a node to inspect.");
+        ImGui::End();
+        return;
+    }
+
+    auto& eng = m_generator.engine();
+    auto* n = eng.find_node(m_inspector_node_id);
+    if (!n) { m_inspector_node_id = -1; return; }
+
+    const auto& desc = n->descriptor();
+
+    // Header: category badge + node name
+    ImGui::TextColored(category_color(desc.category), "%s", desc.category.c_str());
+    ImGui::Separator();
+
+    // Node-specific property controls
+    ImGui::PushID(m_inspector_node_id);
+    n->draw_ui();
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+        (ImGui::IsAnyItemActive() || ImGui::IsItemDeactivatedAfterEdit()))
+        eng.invalidate(m_inspector_node_id);
+    ImGui::PopID();
+
+    // Grid preview: show the first cached grid output, if any
+    for (const auto& pin : desc.pins) {
+        if (pin.direction != ls::pin_direction::output || pin.type != ls::pin_type::grid)
+            continue;
+        const auto* val = eng.get_output(m_inspector_node_id, pin.name);
+        if (!val || !std::holds_alternative<std::shared_ptr<ls::attribute_grid>>(*val))
+            continue;
+        const auto& grid = std::get<std::shared_ptr<ls::attribute_grid>>(*val);
+        if (!grid || grid->width() == 0 || grid->height() == 0)
+            continue;
+
+        const auto attrs = grid->attribute_names();
+        if (attrs.empty()) continue;
+        const std::string& attr = attrs[0];
+
+        ImGui::Separator();
+        ImGui::TextDisabled("Preview: %s (%dx%d)", attr.c_str(), grid->width(), grid->height());
+
+        const float preview_w = ImGui::GetContentRegionAvail().x;
+        const float cell = preview_w / static_cast<float>(grid->width());
+        const float preview_h = cell * static_cast<float>(grid->height());
+
+        const auto cells = grid->data(attr);
+        const int min_v = *std::min_element(cells.begin(), cells.end());
+        const int max_v = *std::max_element(cells.begin(), cells.end());
+        const int range = std::max(1, max_v - min_v);
+
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+
+        for (int y = 0; y < grid->height(); y++) {
+            for (int x = 0; x < grid->width(); x++) {
+                float t = static_cast<float>(grid->get(attr, x, y) - min_v)
+                          / static_cast<float>(range);
+                auto v = static_cast<int>(t * 210 + 20);
+                ImU32 col = IM_COL32(v, v, v, 255);
+                ImVec2 p0(origin.x + x * cell,        origin.y + y * cell);
+                ImVec2 p1(p0.x    + cell + 0.5f,      p0.y    + cell + 0.5f);
+                dl->AddRectFilled(p0, p1, col);
+            }
+        }
+        ImGui::Dummy(ImVec2(preview_w, preview_h));
+        break;
+    }
+
+    ImGui::End();
+}
+
+void application::draw_window_shadow(ImVec2 pos, ImVec2 size, float rounding) {
+    ImDrawList* bg = ImGui::GetBackgroundDrawList();
+    const float offset = 8.0f;
+    // Four passes: outermost (most transparent) to innermost (most opaque)
+    for (int i = 4; i >= 1; i--) {
+        float spread = offset * static_cast<float>(i) * 0.35f;
+        int   alpha  = static_cast<int>(255 * 0.055f * static_cast<float>(5 - i));
+        bg->AddRectFilled(
+            ImVec2(pos.x - spread + offset, pos.y - spread + offset),
+            ImVec2(pos.x + size.x + spread + offset, pos.y + size.y + spread + offset),
+            IM_COL32(0, 0, 0, alpha), rounding + spread);
+    }
 }
