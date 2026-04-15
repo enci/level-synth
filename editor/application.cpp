@@ -132,17 +132,20 @@ void application::init_node_editor() {
     m_node_editor_context = ed::CreateEditor(&config);
     ed::SetCurrentEditor(m_node_editor_context);
 
-    // Test graph: Noise Grid -> Cellular Automata -> Output Grid
+    // Test graph: Create Grid -> Noise Grid -> Cellular Automata -> Output Grid
     auto& eng = m_generator.engine();
-    int noise_id = eng.add_node(std::make_unique<ls::node_noise_grid>());
-    int ca_id    = eng.add_node(std::make_unique<ls::node_cellular_automata>());
-    int out_id   = eng.add_node(std::make_unique<ls::node_output_grid>());
+    int create_id = eng.add_node(std::make_unique<ls::node_create_grid>());
+    int noise_id  = eng.add_node(std::make_unique<ls::node_noise_grid>());
+    int ca_id     = eng.add_node(std::make_unique<ls::node_cellular_automata>());
+    int out_id    = eng.add_node(std::make_unique<ls::node_output_grid>());
 
-    eng.add_wire({ noise_id, "grid",   ca_id,  "input" });
-    eng.add_wire({ ca_id,    "output", out_id, "value" });
+    eng.add_wire({ create_id, "grid", noise_id, "grid"   });
+    eng.add_wire({ noise_id,  "grid", ca_id,    "input"  });
+    eng.add_wire({ ca_id,  "output", out_id,    "value"  });
 
-    m_link_to_wire[m_next_link_id++] = { noise_id, "grid",   ca_id,  "input" };
-    m_link_to_wire[m_next_link_id++] = { ca_id,    "output", out_id, "value" };
+    m_link_to_wire[m_next_link_id++] = { create_id, "grid", noise_id, "grid"   };
+    m_link_to_wire[m_next_link_id++] = { noise_id,  "grid", ca_id,    "input"  };
+    m_link_to_wire[m_next_link_id++] = { ca_id,  "output", out_id,    "value"  };
 }
 
 void application::run() {
@@ -206,14 +209,14 @@ void application::update() {
     ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->WorkPos);
     ImGui::SetNextWindowSize(vp->WorkSize);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    // ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    // ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::Begin("##dockhost", nullptr,
         ImGuiWindowFlags_NoTitleBar    | ImGuiWindowFlags_NoCollapse  |
         ImGuiWindowFlags_NoResize      | ImGuiWindowFlags_NoMove      |
         ImGuiWindowFlags_NoScrollbar   | ImGuiWindowFlags_NoSavedSettings |
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoDocking);
-    ImGui::PopStyleVar(2);
+    // ImGui::PopStyleVar(2);
 
     ImGuiID dsid = ImGui::GetID("##dockspace");
     if (!ImGui::DockBuilderGetNode(dsid)) {
@@ -571,9 +574,9 @@ void application::toolbar() {
     ImGui::SetNextWindowPos(ImVec2(toolbar_x, toolbar_y), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(toolbar_width, toolbar_height), ImGuiCond_Always);
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f * scale);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(toolbar_padding, toolbar_padding));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    // ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f * scale);
+    // ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(toolbar_padding, toolbar_padding));
+    // ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, m_colors[editor::Color_ToolbarBg]);
     ImGui::PushStyleColor(ImGuiCol_Border, m_colors[editor::Color_ToolbarBorder]);
 
@@ -589,7 +592,7 @@ void application::toolbar() {
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_colors[editor::Color_ToolbarButtonHovered]);
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_colors[editor::Color_ToolbarButtonActive]);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f * scale);
+    // ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f * scale);
 
     // Hamburger menu button
     if (ImGui::Button(ICON_FI_BARS, ImVec2(button_size, button_size)))
@@ -715,13 +718,13 @@ void application::toolbar() {
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * scale);
     ImGui::TextDisabled("%.0f fps", io.Framerate);
 
-    ImGui::PopStyleVar(1); // FrameRounding
+    // ImGui::PopStyleVar(1); // FrameRounding
     ImGui::PopStyleColor(3); // Button colors
 
     ImGui::End();
 
     ImGui::PopStyleColor(2); // WindowBg, Border
-    ImGui::PopStyleVar(3); // WindowRounding, WindowPadding, WindowBorderSize
+    // ImGui::PopStyleVar(3); // WindowRounding, WindowPadding, WindowBorderSize
 }
 
 void application::set_node_editor_style() {

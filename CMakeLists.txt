@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.24)
 project(level-synth VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -172,7 +172,7 @@ target_compile_definitions(level_synth_editor PRIVATE
 )
 
 target_link_libraries(level_synth_editor PRIVATE
-        level_synth_library
+        $<LINK_LIBRARY:WHOLE_ARCHIVE,level_synth_library>
         SDL3::SDL3-static
         freetype
 )

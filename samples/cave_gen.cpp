@@ -5,7 +5,7 @@
 //
 // Graph:
 //   [InputNumber "iterations"] ------> [CellularAutomata] ----> [OutputGrid "level"]
-//              [NoiseGrid] ----------^
+//              [CreateGrid] -> [NoiseGrid] ----------^
 
 #include <level_synth/level_synth.hpp>
 
@@ -22,10 +22,14 @@ int main() {
     iterations_node->default_value = 4;
     int iterations_id = engine.add_node(std::move(iterations_node));
 
-    // Random noise grid — ~45% density, 48x24
+    // Grid dimensions — shared by create and noise
+    auto create_node = std::make_unique<ls::node_create_grid>();
+    create_node->default_width  = 48;
+    create_node->default_height = 24;
+    int create_id = engine.add_node(std::move(create_node));
+
+    // Random noise grid — ~45% density
     auto noise_node = std::make_unique<ls::node_noise_grid>();
-    noise_node->default_width = 48;
-    noise_node->default_height = 24;
     noise_node->default_density = 0.45;
     int noise_id = engine.add_node(std::move(noise_node));
 
@@ -41,7 +45,8 @@ int main() {
     int out_id = engine.add_node(std::move(out_node));
 
     // -- Wire them up --
-    engine.add_wire({noise_id, "grid", ca_id, "input"});
+    engine.add_wire({create_id,     "grid",  noise_id, "grid"  });
+    engine.add_wire({noise_id,      "grid",  ca_id,    "input" });
     engine.add_wire({iterations_id, "value", ca_id, "iterations"});
     engine.add_wire({ca_id, "output", out_id, "value"});
 

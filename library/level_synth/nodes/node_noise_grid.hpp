@@ -13,8 +13,6 @@ public:
     void draw_ui() override;
 #endif
 
-    double default_width = 64;
-    double default_height = 64;
     double default_density = 0.45;
     std::string attribute_name = "terrain";
 };

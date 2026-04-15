@@ -28,6 +28,7 @@ public:
 private:
     void init_sdl();
     void init_imgui();
+
     void init_node_editor();
     void process_events();
     void dispatch_event(const SDL_Event& event);

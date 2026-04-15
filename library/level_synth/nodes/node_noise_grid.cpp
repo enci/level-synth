@@ -14,8 +14,7 @@ const node_descriptor& node_noise_grid::descriptor() const {
     static node_descriptor desc{
         "Noise Grid", "Generation",
         {
-            {"width",   pin_direction::input,  pin_type::number, false},
-            {"height",  pin_direction::input,  pin_type::number, false},
+            {"grid",    pin_direction::input,  pin_type::grid,   true},
             {"density", pin_direction::input,  pin_type::number, false},
             {"grid",    pin_direction::output, pin_type::grid,   true},
         }
@@ -24,20 +23,18 @@ const node_descriptor& node_noise_grid::descriptor() const {
 }
 
 eval_task node_noise_grid::evaluate(eval_context& ctx) {
-    int w = ctx.has_input("width")
-        ? static_cast<int>(ctx.input_number("width"))
-        : static_cast<int>(default_width);
-
-    int h = ctx.has_input("height")
-        ? static_cast<int>(ctx.input_number("height"))
-        : static_cast<int>(default_height);
+    if (!ctx.has_input("grid")) co_return;
 
     double density = ctx.has_input("density")
         ? ctx.input_number("density")
         : default_density;
 
-    auto grid = std::make_shared<attribute_grid>(w, h);
+    const auto& src = ctx.input_grid("grid");
+    auto grid = std::make_shared<attribute_grid>(src);
     grid->add_attribute(attribute_name, 0);
+
+    int w = grid->width();
+    int h = grid->height();
 
     std::uniform_real_distribution<double> dist(0.0, 1.0);
     auto& rng = ctx.rng();
@@ -55,11 +52,7 @@ eval_task node_noise_grid::evaluate(eval_context& ctx) {
 
 #ifdef LS_EDITOR
 void node_noise_grid::draw_ui() {
-    int w = static_cast<int>(default_width);
-    int h = static_cast<int>(default_height);
     float density = static_cast<float>(default_density);
-    if (ImGui::DragInt("Width",   &w, 1, 1, 512))              default_width   = w;
-    if (ImGui::DragInt("Height",  &h, 1, 1, 512))              default_height  = h;
     if (ImGui::SliderFloat("Density", &density, 0.0f, 1.0f))   default_density = density;
 
     char buf[128];
