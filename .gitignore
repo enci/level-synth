@@ -3,3 +3,4 @@
 /.claude
 /build
 .vscode
+/.venv

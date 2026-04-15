@@ -24,7 +24,7 @@ FetchContent_MakeAvailable(sdl3)
 FetchContent_Declare(
         imgui
         GIT_REPOSITORY https://github.com/ocornut/imgui.git
-        GIT_TAG docking
+        GIT_TAG features/shadows
 )
 FetchContent_MakeAvailable(imgui)
 

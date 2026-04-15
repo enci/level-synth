@@ -88,7 +88,6 @@ void application::init_imgui() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     ImGui_ImplSDL3_InitForSDLRenderer(m_window, m_renderer);
     ImGui_ImplSDLRenderer3_Init(m_renderer);
@@ -205,39 +204,22 @@ void application::update() {
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    // --- Fullscreen DockSpace host ---
+    // --- Layout: Node Editor (top) and Details (bottom) ---
     ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(vp->WorkPos);
-    ImGui::SetNextWindowSize(vp->WorkSize);
-    // ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    // ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::Begin("##dockhost", nullptr,
-        ImGuiWindowFlags_NoTitleBar    | ImGuiWindowFlags_NoCollapse  |
-        ImGuiWindowFlags_NoResize      | ImGuiWindowFlags_NoMove      |
-        ImGuiWindowFlags_NoScrollbar   | ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoDocking);
-    // ImGui::PopStyleVar(2);
+    const float details_h = vp->WorkSize.y * 0.28f;
+    const float editor_h  = vp->WorkSize.y - details_h;
 
-    ImGuiID dsid = ImGui::GetID("##dockspace");
-    if (!ImGui::DockBuilderGetNode(dsid)) {
-        ImGui::DockBuilderRemoveNode(dsid);
-        ImGui::DockBuilderAddNode(dsid, ImGuiDockNodeFlags_DockSpace);
-        ImGui::DockBuilderSetNodeSize(dsid, vp->WorkSize);
-        ImGuiID bottom, top = dsid;
-        bottom = ImGui::DockBuilderSplitNode(top, ImGuiDir_Down, 0.28f, nullptr, &top);
-        ImGui::DockBuilderDockWindow("Node Editor", top);
-        ImGui::DockBuilderDockWindow("Details", bottom);
-        ImGui::DockBuilderFinish(dsid);
-    }
-    ImGui::DockSpace(dsid, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
-    ImGui::End();
-
-    // --- Node Editor window ---
+    ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, editor_h), ImGuiCond_Always);
     ImGui::Begin("Node Editor", nullptr,
-        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+        ImGuiWindowFlags_NoTitleBar  | ImGuiWindowFlags_NoResize          |
+        ImGuiWindowFlags_NoMove      | ImGuiWindowFlags_NoBringToFrontOnFocus);
     node_editor();
     ImGui::End();
 
+    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x, vp->WorkPos.y + editor_h), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, details_h), ImGuiCond_Always);
     // --- Details panel (always open) ---
     inspector();
 
