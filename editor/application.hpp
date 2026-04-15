@@ -40,6 +40,7 @@ private:
     void status_bar();
     void node_editor();
     void inspector();
+    void preview_window();
 
     // --- Node editor sub-routines ---
     void draw_node(int node_id);
@@ -89,6 +90,10 @@ private:
     std::unordered_map<int, wire_visual> m_link_to_wire;  // link_id -> wire info
     ImVec2 m_popup_canvas_pos = {};                       // canvas pos where right-click was detected
     int m_inspector_node_id = -1;                         // selected node shown in inspector (-1 = none)
+
+    // Preview window state
+    int m_preview_node_id = -1;                           // node selected in preview dropdown (-1 = none)
+    std::string m_preview_attr;                           // attribute selected in preview dropdown
 
     // Helper functions
     static ax::NodeEditor::PinId make_pin_id(int node_id, int pin_index);

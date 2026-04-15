@@ -97,7 +97,7 @@ void application::init_imgui() {
     io.Fonts->SetFontLoader(loader);
     io.Fonts->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_ForceAutoHint;
 
-    constexpr float k_font_size = 16.0f;
+    constexpr float k_font_size = 14.0f;
     ImFontConfig config;
     config.OversampleH = 8;
     config.OversampleV = 8;
@@ -110,8 +110,8 @@ void application::init_imgui() {
     {
         ImFontConfig icon_config;
         icon_config.MergeMode = true;
-        icon_config.OversampleH = 1;
-        icon_config.OversampleV = 1;
+        icon_config.OversampleH = 8;
+        icon_config.OversampleV = 8;
         static const ImWchar ph_ranges[] = {
             phosphor::PH_RANGE_BEGIN, phosphor::PH_RANGE_END, 0
         };
@@ -222,8 +222,11 @@ void application::update() {
         ImGui::DockBuilderSetNodeSize(dsid, vp->WorkSize);
         ImGuiID bottom, top = dsid;
         bottom = ImGui::DockBuilderSplitNode(top, ImGuiDir_Down, 0.28f, nullptr, &top);
+        ImGuiID bottom_right, bottom_left = bottom;
+        bottom_right = ImGui::DockBuilderSplitNode(bottom_left, ImGuiDir_Right, 0.50f, nullptr, &bottom_left);
         ImGui::DockBuilderDockWindow("Node Editor", top);
-        ImGui::DockBuilderDockWindow("Details", bottom);
+        ImGui::DockBuilderDockWindow("Details", bottom_left);
+        ImGui::DockBuilderDockWindow("Output Preview", bottom_right);
         ImGui::DockBuilderFinish(dsid);
     }
     ImGui::DockSpace(dsid, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
@@ -237,6 +240,9 @@ void application::update() {
 
     // --- Details panel ---
     inspector();
+
+    // --- Output preview panel ---
+    preview_window();
 
     // --- Status bar (always on top of everything else) ---
     status_bar();
@@ -546,11 +552,8 @@ void application::menu_bar() {
         return;
 
     // Hamburger button — opens the main menu popup
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    const float btn_early = ImGui::GetFrameHeight();
-    if (ImGui::Button(phosphor::PH_HAMBURGER, ImVec2(btn_early, btn_early)))
+    if (ImGui::MenuItem(phosphor::PH_LIST))
         ImGui::OpenPopup("##main_menu");
-    ImGui::PopStyleColor();
 
     if (ImGui::BeginPopup("##main_menu")) {
         if (ImGui::BeginMenu("File")) {
@@ -588,59 +591,46 @@ void application::menu_bar() {
         ImGui::EndPopup();
     }
 
-    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-    ImGui::Spacing();
-
-    const float btn = ImGui::GetFrameHeight();
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    // ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
 
     // Theme toggle
     const char* theme_icon = m_dark_theme ? phosphor::PH_MOON : phosphor::PH_SUN;
-    if (ImGui::Button(theme_icon, ImVec2(btn, btn))) {
+    if (ImGui::MenuItem(theme_icon))  {
         m_dark_theme = !m_dark_theme;
         apply_theme();
     }
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("Toggle theme");
 
-    ImGui::SameLine();
-    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-    ImGui::SameLine();
+    // ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
 
     // Zoom controls
     ed::SetCurrentEditor(m_node_editor_context);
     float inv_scale = ed::GetCurrentZoom();
 
-    if (ImGui::Button(phosphor::PH_MAGNIFYING_GLASS_MINUS, ImVec2(btn, btn)))
+    if (ImGui::MenuItem(phosphor::PH_MAGNIFYING_GLASS_MINUS))
         ed::SetCurrentZoom(inv_scale * 1.25f);
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("Zoom out");
-    ImGui::SameLine();
 
     char zoom_buf[16];
     snprintf(zoom_buf, sizeof(zoom_buf), "%d%%", (int)(100.0f / inv_scale + 0.5f));
-    if (ImGui::Button(zoom_buf, ImVec2(0, btn)))
+    if (ImGui::MenuItem(zoom_buf))
         ed::SetCurrentZoom(1.0f);
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("Reset zoom to 100%%");
-    ImGui::SameLine();
 
-    if (ImGui::Button(phosphor::PH_MAGNIFYING_GLASS_PLUS, ImVec2(btn, btn)))
+    if (ImGui::MenuItem(phosphor::PH_MAGNIFYING_GLASS_PLUS))
         ed::SetCurrentZoom(inv_scale * 0.8f);
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("Zoom in");
-    ImGui::SameLine();
 
-    if (ImGui::Button(phosphor::PH_FRAME_CORNERS, ImVec2(btn, btn)))
+    if (ImGui::MenuItem(phosphor::PH_FRAME_CORNERS))
         ed::NavigateToContent();
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("Fit to content");
     ed::SetCurrentEditor(nullptr);
 
-    ImGui::SameLine();
-    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-    ImGui::SameLine();
+    // ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
 
-    if (ImGui::Button(phosphor::PH_PLAY, ImVec2(btn, btn)))
+    if (ImGui::MenuItem(phosphor::PH_PLAY))
         m_generator.engine().evaluate(0);
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("Evaluate graph");
-
-    ImGui::PopStyleColor(); // Button
 
     ImGui::EndMainMenuBar();
 }
@@ -930,7 +920,7 @@ void application::set_dark_theme() {
 }
 
 void application::inspector() {
-    ImGui::Begin("Details");
+    ImGui::Begin("Node Details");
 
     if (m_inspector_node_id == -1) {
         ImGui::TextDisabled("Select a node to inspect.");
@@ -956,50 +946,125 @@ void application::inspector() {
         eng.invalidate(m_inspector_node_id);
     ImGui::PopID();
 
-    // Grid preview: show the first cached grid output, if any
-    for (const auto& pin : desc.pins) {
-        if (pin.direction != ls::pin_direction::output || pin.type != ls::pin_type::grid)
-            continue;
-        const auto* val = eng.get_output(m_inspector_node_id, pin.name);
-        if (!val || !std::holds_alternative<std::shared_ptr<ls::attribute_grid>>(*val))
-            continue;
-        const auto& grid = std::get<std::shared_ptr<ls::attribute_grid>>(*val);
-        if (!grid || grid->width() == 0 || grid->height() == 0)
-            continue;
+    ImGui::End();
+}
 
-        const auto attrs = grid->attribute_names();
-        if (attrs.empty()) continue;
-        const std::string& attr = attrs[0];
+void application::preview_window() {
+    ImGui::Begin("Output Preview");
 
-        ImGui::Separator();
-        ImGui::TextDisabled("Preview: %s (%dx%d)", attr.c_str(), grid->width(), grid->height());
+    auto& eng = m_generator.engine();
 
-        const float preview_w = ImGui::GetContentRegionAvail().x;
-        const float cell = preview_w / static_cast<float>(grid->width());
-        const float preview_h = cell * static_cast<float>(grid->height());
-
-        const auto cells = grid->data(attr);
-        const int min_v = *std::min_element(cells.begin(), cells.end());
-        const int max_v = *std::max_element(cells.begin(), cells.end());
-        const int range = std::max(1, max_v - min_v);
-
-        const ImVec2 origin = ImGui::GetCursorScreenPos();
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-
-        for (int y = 0; y < grid->height(); y++) {
-            for (int x = 0; x < grid->width(); x++) {
-                float t = static_cast<float>(grid->get(attr, x, y) - min_v)
-                          / static_cast<float>(range);
-                auto v = static_cast<int>(t * 210 + 20);
-                ImU32 col = IM_COL32(v, v, v, 255);
-                ImVec2 p0(origin.x + x * cell,        origin.y + y * cell);
-                ImVec2 p1(p0.x    + cell + 0.5f,      p0.y    + cell + 0.5f);
-                dl->AddRectFilled(p0, p1, col);
+    // Build list of nodes that have at least one grid output pin
+    struct grid_node_entry { int id; std::string label; };
+    std::vector<grid_node_entry> candidates;
+    for (int nid : eng.node_ids()) {
+        const auto* n = eng.find_node(nid);
+        if (!n) continue;
+        for (const auto& pin : n->descriptor().pins) {
+            if (pin.direction == ls::pin_direction::output && pin.type == ls::pin_type::grid) {
+                candidates.push_back({ nid, n->descriptor().name + " (#" + std::to_string(nid) + ")" });
+                break;
             }
         }
-        ImGui::Dummy(ImVec2(preview_w, preview_h));
-        break;
     }
+
+    if (candidates.empty()) {
+        ImGui::TextDisabled("No nodes with grid outputs.");
+        ImGui::End();
+        return;
+    }
+
+    // Validate stored selection
+    bool node_valid = std::any_of(candidates.begin(), candidates.end(),
+        [&](const auto& c) { return c.id == m_preview_node_id; });
+    if (!node_valid) {
+        m_preview_node_id = candidates[0].id;
+        m_preview_attr.clear();
+    }
+
+    // Node combo
+    const char* node_label = "";
+    for (const auto& c : candidates)
+        if (c.id == m_preview_node_id) { node_label = c.label.c_str(); break; }
+
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+    if (ImGui::BeginCombo("##preview_node", node_label)) {
+        for (const auto& c : candidates) {
+            bool sel = (c.id == m_preview_node_id);
+            if (ImGui::Selectable(c.label.c_str(), sel)) {
+                m_preview_node_id = c.id;
+                m_preview_attr.clear();
+            }
+            if (sel) ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+
+    // Resolve grid from cache — find first grid output pin with data
+    const auto* n = eng.find_node(m_preview_node_id);
+    if (!n) { ImGui::End(); return; }
+
+    std::shared_ptr<ls::attribute_grid> grid;
+    for (const auto& pin : n->descriptor().pins) {
+        if (pin.direction != ls::pin_direction::output || pin.type != ls::pin_type::grid) continue;
+        const auto* val = eng.get_output(m_preview_node_id, pin.name);
+        if (!val || !std::holds_alternative<std::shared_ptr<ls::attribute_grid>>(*val)) continue;
+        auto g = std::get<std::shared_ptr<ls::attribute_grid>>(*val);
+        if (g && g->width() > 0) { grid = g; break; }
+    }
+
+    if (!grid) {
+        ImGui::TextDisabled("No cached output — evaluate the graph first.");
+        ImGui::End();
+        return;
+    }
+
+    // Attribute combo
+    const auto attrs = grid->attribute_names();
+    if (attrs.empty()) { ImGui::End(); return; }
+
+    if (m_preview_attr.empty() ||
+        std::find(attrs.begin(), attrs.end(), m_preview_attr) == attrs.end())
+        m_preview_attr = attrs[0];
+
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+    if (ImGui::BeginCombo("##preview_attr", m_preview_attr.c_str())) {
+        for (const auto& a : attrs) {
+            bool sel = (a == m_preview_attr);
+            if (ImGui::Selectable(a.c_str(), sel))
+                m_preview_attr = a;
+            if (sel) ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+
+    // Grid render — fill available space while keeping aspect ratio
+    ImGui::Spacing();
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    const float cell = std::min(avail.x / static_cast<float>(grid->width()),
+                                avail.y / static_cast<float>(grid->height()));
+    const float render_w = cell * static_cast<float>(grid->width());
+    const float render_h = cell * static_cast<float>(grid->height());
+
+    const auto& cells = grid->data(m_preview_attr);
+    const int min_v = *std::min_element(cells.begin(), cells.end());
+    const int max_v = *std::max_element(cells.begin(), cells.end());
+    const int range = std::max(1, max_v - min_v);
+
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    for (int y = 0; y < grid->height(); y++) {
+        for (int x = 0; x < grid->width(); x++) {
+            float t = static_cast<float>(grid->get(m_preview_attr, x, y) - min_v)
+                      / static_cast<float>(range);
+            int v = static_cast<int>(t * 210 + 20);
+            ImVec2 p0(origin.x + x * cell,      origin.y + y * cell);
+            ImVec2 p1(p0.x    + cell + 0.5f,    p0.y    + cell + 0.5f);
+            dl->AddRectFilled(p0, p1, IM_COL32(v, v, v, 255));
+        }
+    }
+    ImGui::Dummy(ImVec2(render_w, render_h));
 
     ImGui::End();
 }
