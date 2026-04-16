@@ -164,6 +164,7 @@ target_include_directories(level_synth_editor PRIVATE
         ${IMGUI_DIR}
         ${IMGUI_DIR}/misc/freetype
         ${IMGUI_NODE_EDITOR_DIR}
+        ${IMGUI_NODE_EDITOR_DIR}/external/stb_image
         ${freetype_SOURCE_DIR}/include
 )
 

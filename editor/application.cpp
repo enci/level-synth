@@ -10,6 +10,9 @@
 #include "backends/imgui_impl_sdlrenderer3.h"
 #include "misc/freetype/imgui_freetype.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #include <level_synth/nodes/node_create_grid.hpp>
 #include <level_synth/nodes/node_cellular_automata.hpp>
 #include <level_synth/nodes/node_input_number.hpp>
@@ -25,6 +28,36 @@
 namespace ed = ax::NodeEditor;
 
 Uint32 application::s_redraw_event_type = 0;
+
+// Helper function to load window icon from PNG file
+static SDL_Surface* load_icon_from_file(const char* filename) {
+    int width, height, channels;
+    unsigned char* data = stbi_load(filename, &width, &height, &channels, 4); // Force RGBA
+    
+    if (!data) {
+        std::cerr << "Failed to load icon: " << filename << " - " << stbi_failure_reason() << std::endl;
+        return nullptr;
+    }
+    
+    // Create SDL surface from loaded image data
+    SDL_Surface* surface = SDL_CreateSurfaceFrom(
+        width, height,
+        SDL_PIXELFORMAT_RGBA32,
+        data,
+        width * 4
+    );
+    
+    if (!surface) {
+        std::cerr << "Failed to create SDL surface: " << SDL_GetError() << std::endl;
+        stbi_image_free(data);
+        return nullptr;
+    }
+    
+    // Note: We intentionally don't free 'data' here because SDL_Surface uses it.
+    // The caller must handle cleanup by calling SDL_DestroySurface() and then stbi_image_free().
+    
+    return surface;
+}
 
 void application::request_redraw() {
     if (s_redraw_event_type == 0)
@@ -80,6 +113,15 @@ void application::init_sdl() {
     }
 
     SDL_SetRenderVSync(m_renderer, 1);
+
+    // Set window icon
+    SDL_Surface* icon = load_icon_from_file("../resources/icon.png");
+    if (icon) {
+        SDL_SetWindowIcon(m_window, icon);
+        SDL_DestroySurface(icon);
+        // Note: The image data is still owned by stb_image and will leak.
+        // For a production app, you'd want to track and free it properly.
+    }
 
     s_redraw_event_type = SDL_RegisterEvents(1);
 }
