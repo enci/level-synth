@@ -19,6 +19,7 @@
 #include <level_synth/node_registry.hpp>
 #include <level_synth/attribute_grid.hpp>
 #include <map>
+#include <set>
 #include <algorithm>
 
 namespace ed = ax::NodeEditor;
@@ -204,24 +205,18 @@ void application::update() {
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    // --- Layout: Node Editor (top) and Details (bottom) ---
+    // --- Node Editor takes the full workspace ---
     ImGuiViewport* vp = ImGui::GetMainViewport();
-    const float details_h = vp->WorkSize.y * 0.28f;
-    const float editor_h  = vp->WorkSize.y - details_h;
-
     ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, editor_h), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_Always);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::Begin("Node Editor", nullptr,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
         ImGuiWindowFlags_NoTitleBar  | ImGuiWindowFlags_NoResize          |
         ImGuiWindowFlags_NoMove      | ImGuiWindowFlags_NoBringToFrontOnFocus);
     node_editor();
     ImGui::End();
-
-    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x, vp->WorkPos.y + editor_h), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, details_h), ImGuiCond_Always);
-    // --- Details panel (always open) ---
-    inspector();
+    ImGui::PopStyleVar();
 
     // --- Floating toolbar overlay ---
     toolbar();
@@ -297,11 +292,18 @@ application::pin_info application::resolve_pin(ed::PinId pin_id) const {
 
 void application::node_editor() {
     ed::SetCurrentEditor(m_node_editor_context);
+    ImGui::PushStyleColor(ImGuiCol_Border,       ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_BorderShadow, ImVec4(0, 0, 0, 0));
     ed::Begin("Level Synth", ImVec2(0.0, 0.0f));
 
     auto& eng = m_generator.engine();
     ed::NodeBuilder builder;
     const ImVec2 icon_size(16, 16);
+
+    // Build set of connected input pins for this frame
+    std::set<std::pair<int, std::string>> connected_inputs;
+    for (const auto& [lid, wv] : m_link_to_wire)
+        connected_inputs.emplace(wv.to_node, wv.to_pin);
 
     // --- Render all nodes from engine ---
     for (int node_id : eng.node_ids()) {
@@ -312,10 +314,11 @@ void application::node_editor() {
         ImVec4 header_color = category_color(desc.category);
 
         if (m_first_frame) {
-            // Stagger initial positions so nodes don't overlap
             ed::SetNodePosition(ed::NodeId(node_id),
                 ImVec2(10.0f + (node_id - 1) * 300.0f, 10.0f));
         }
+
+        bool node_changed = false;
 
         builder.Begin(ed::NodeId(node_id));
         {
@@ -334,11 +337,24 @@ void application::node_editor() {
 
                     auto pid = make_pin_id(node_id, i);
                     ImVec4 color = pin_color(pin.type);
+                    bool is_connected = connected_inputs.count({node_id, pin.name}) > 0;
 
                     ed::BeginPin(pid, ed::PinKind::Input);
-                        ed::DrawPinIcon(icon_size, ed::PinIconType::Circle, true, color);
+                        ed::DrawPinIcon(icon_size, ed::PinIconType::Circle, is_connected, color);
                         ImGui::SameLine();
-                        ImGui::TextUnformatted(pin.name.c_str());
+                        if (!is_connected && pin.type == ls::pin_type::number
+                                          && n->has_input_default(pin.name)) {
+                            float val = static_cast<float>(n->get_default(pin.name));
+                            ImGui::SetNextItemWidth(60.0f);
+                            if (ImGui::DragFloat(pin.name.c_str(), &val, 0.1f)) {
+                                n->set_default(pin.name, static_cast<double>(val));
+                                node_changed = true;
+                            }
+                        } else if (is_connected) {
+                            ImGui::TextDisabled("%s", pin.name.c_str());
+                        } else {
+                            ImGui::TextUnformatted(pin.name.c_str());
+                        }
                     ed::EndPin();
                 }
                 ImGui::EndGroup();
@@ -363,8 +379,57 @@ void application::node_editor() {
                 ImGui::EndGroup();
             }
             builder.EndColumns();
+
+            if (n->draw_body_ui())
+                node_changed = true;
+
+            // Grid preview — only on sink nodes (all pins are inputs, e.g. Output Grid)
+            const bool is_sink = std::none_of(desc.pins.begin(), desc.pins.end(),
+                [](const ls::pin_descriptor& p){ return p.direction == ls::pin_direction::output; });
+
+            if (is_sink) {
+                for (const auto& pin : desc.pins) {
+                    if (pin.type != ls::pin_type::grid) continue;
+                    const auto* val = eng.get_output(node_id, pin.name);
+                    if (!val || !std::holds_alternative<std::shared_ptr<ls::attribute_grid>>(*val))
+                        continue;
+                    const auto& grid = std::get<std::shared_ptr<ls::attribute_grid>>(*val);
+                    if (!grid || grid->width() == 0 || grid->height() == 0) continue;
+
+                    const auto attrs = grid->attribute_names();
+                    if (attrs.empty()) continue;
+                    const std::string& attr = attrs[0];
+
+                    constexpr float k_preview_w = 150.0f;
+                    const float cell      = k_preview_w / static_cast<float>(grid->width());
+                    const float preview_h = cell * static_cast<float>(grid->height());
+
+                    const auto& cells = grid->data(attr);
+                    const int min_v = *std::min_element(cells.begin(), cells.end());
+                    const int max_v = *std::max_element(cells.begin(), cells.end());
+                    const int range = std::max(1, max_v - min_v);
+
+                    ImVec2 origin = ImGui::GetCursorScreenPos();
+                    ImDrawList* dl = ImGui::GetWindowDrawList();
+                    for (int y = 0; y < grid->height(); y++) {
+                        for (int x = 0; x < grid->width(); x++) {
+                            float t = static_cast<float>(grid->get(attr, x, y) - min_v)
+                                      / static_cast<float>(range);
+                            int v = static_cast<int>(t * 210 + 20);
+                            ImVec2 p0(origin.x + x * cell,  origin.y + y * cell);
+                            ImVec2 p1(p0.x + cell + 0.5f,   p0.y + cell + 0.5f);
+                            dl->AddRectFilled(p0, p1, IM_COL32(v, v, v, 255));
+                        }
+                    }
+                    ImGui::Dummy(ImVec2(k_preview_w, preview_h));
+                    break;
+                }
+            }
         }
         builder.End();
+
+        if (node_changed)
+            eng.invalidate(node_id);
     }
 
     // --- Render links from side map ---
@@ -525,14 +590,7 @@ void application::node_editor() {
     ed::Resume();
 
     ed::End();
-
-    // Update inspector selection (query after End so all interaction is settled)
-    {
-        int count = ed::GetSelectedObjectCount();
-        std::vector<ed::NodeId> sel(count);
-        count = ed::GetSelectedNodes(sel.data(), static_cast<int>(sel.size()));
-        m_inspector_node_id = (count == 1) ? static_cast<int>(sel[0].Get()) : -1;
-    }
+    ImGui::PopStyleColor(2); // Border, BorderShadow
 
     ed::SetCurrentEditor(nullptr);
     m_first_frame = false;
@@ -954,81 +1012,6 @@ void application::set_dark_theme() {
     edStyle.Colors[StyleColor_FlowMarker]          = ImColor(255, 128, 64, 255);
     edStyle.Colors[StyleColor_GroupBg]             = ImColor(0, 0, 0, 120);
     edStyle.Colors[StyleColor_GroupBorder]         = ImColor(255, 255, 255, 24);
-}
-
-void application::inspector() {
-    ImGui::Begin("Details");
-
-    if (m_inspector_node_id == -1) {
-        ImGui::TextDisabled("Select a node to inspect.");
-        ImGui::End();
-        return;
-    }
-
-    auto& eng = m_generator.engine();
-    auto* n = eng.find_node(m_inspector_node_id);
-    if (!n) { m_inspector_node_id = -1; return; }
-
-    const auto& desc = n->descriptor();
-
-    // Header: category badge + node name
-    ImGui::TextColored(category_color(desc.category), "%s", desc.category.c_str());
-    ImGui::Separator();
-
-    // Node-specific property controls
-    ImGui::PushID(m_inspector_node_id);
-    n->draw_ui();
-    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
-        (ImGui::IsAnyItemActive() || ImGui::IsItemDeactivatedAfterEdit()))
-        eng.invalidate(m_inspector_node_id);
-    ImGui::PopID();
-
-    // Grid preview: show the first cached grid output, if any
-    for (const auto& pin : desc.pins) {
-        if (pin.direction != ls::pin_direction::output || pin.type != ls::pin_type::grid)
-            continue;
-        const auto* val = eng.get_output(m_inspector_node_id, pin.name);
-        if (!val || !std::holds_alternative<std::shared_ptr<ls::attribute_grid>>(*val))
-            continue;
-        const auto& grid = std::get<std::shared_ptr<ls::attribute_grid>>(*val);
-        if (!grid || grid->width() == 0 || grid->height() == 0)
-            continue;
-
-        const auto attrs = grid->attribute_names();
-        if (attrs.empty()) continue;
-        const std::string& attr = attrs[0];
-
-        ImGui::Separator();
-        ImGui::TextDisabled("Preview: %s (%dx%d)", attr.c_str(), grid->width(), grid->height());
-
-        const float preview_w = ImGui::GetContentRegionAvail().x;
-        const float cell = preview_w / static_cast<float>(grid->width());
-        const float preview_h = cell * static_cast<float>(grid->height());
-
-        const auto cells = grid->data(attr);
-        const int min_v = *std::min_element(cells.begin(), cells.end());
-        const int max_v = *std::max_element(cells.begin(), cells.end());
-        const int range = std::max(1, max_v - min_v);
-
-        const ImVec2 origin = ImGui::GetCursorScreenPos();
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-
-        for (int y = 0; y < grid->height(); y++) {
-            for (int x = 0; x < grid->width(); x++) {
-                float t = static_cast<float>(grid->get(attr, x, y) - min_v)
-                          / static_cast<float>(range);
-                auto v = static_cast<int>(t * 210 + 20);
-                ImU32 col = IM_COL32(v, v, v, 255);
-                ImVec2 p0(origin.x + x * cell,        origin.y + y * cell);
-                ImVec2 p1(p0.x    + cell + 0.5f,      p0.y    + cell + 0.5f);
-                dl->AddRectFilled(p0, p1, col);
-            }
-        }
-        ImGui::Dummy(ImVec2(preview_w, preview_h));
-        break;
-    }
-
-    ImGui::End();
 }
 
 void application::draw_window_shadow(ImVec2 pos, ImVec2 size, float rounding) {

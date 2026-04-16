@@ -11,6 +11,9 @@ public:
 
 #ifdef LS_EDITOR
     void draw_ui() override;
+    bool has_input_default(const std::string& pin_name) const override;
+    double get_default(const std::string& pin_name) const override;
+    void set_default(const std::string& pin_name, double value) override;
 #endif
 
     double default_width = 64;

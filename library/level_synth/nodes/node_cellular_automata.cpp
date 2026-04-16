@@ -103,6 +103,23 @@ void node_cellular_automata::draw_ui() {
     if (ImGui::InputText("Attribute", buf, sizeof(buf)))
         attribute_name = buf;
 }
+
+bool node_cellular_automata::has_input_default(const std::string& pin_name) const {
+    return pin_name == "iterations" || pin_name == "birth" || pin_name == "death";
+}
+
+double node_cellular_automata::get_default(const std::string& pin_name) const {
+    if (pin_name == "iterations") return default_iterations;
+    if (pin_name == "birth")      return default_birth;
+    if (pin_name == "death")      return default_death;
+    return 0.0;
+}
+
+void node_cellular_automata::set_default(const std::string& pin_name, double value) {
+    if      (pin_name == "iterations") default_iterations = value;
+    else if (pin_name == "birth")      default_birth      = value;
+    else if (pin_name == "death")      default_death      = value;
+}
 #endif
 
 LS_REGISTER_NODE(node_cellular_automata);

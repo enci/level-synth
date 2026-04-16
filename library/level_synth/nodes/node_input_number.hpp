@@ -11,6 +11,7 @@ public:
 
 #ifdef LS_EDITOR
     void draw_ui() override;
+    bool draw_body_ui() override;
 #endif
 
     std::string param_name = "param";
