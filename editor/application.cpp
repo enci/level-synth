@@ -77,7 +77,7 @@ application::application(const std::string& title, int width, int height)
     init_sdl();
     init_imgui();
     init_node_editor();
-    apply_theme();
+    // apply_theme();
 }
 
 application::~application() {
@@ -334,8 +334,8 @@ application::pin_info application::resolve_pin(ed::PinId pin_id) const {
 
 void application::node_editor() {
     ed::SetCurrentEditor(m_node_editor_context);
-    ImGui::PushStyleColor(ImGuiCol_Border,       ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_BorderShadow, ImVec4(0, 0, 0, 0));
+    // ImGui::PushStyleColor(ImGuiCol_Border,       ImVec4(0, 0, 0, 0));
+    // ImGui::PushStyleColor(ImGuiCol_BorderShadow, ImVec4(0, 0, 0, 0));
     ed::Begin("Level Synth", ImVec2(0.0, 0.0f));
 
     auto& eng = m_generator.engine();
@@ -632,7 +632,7 @@ void application::node_editor() {
     ed::Resume();
 
     ed::End();
-    ImGui::PopStyleColor(2); // Border, BorderShadow
+    // ImGui::PopStyleColor(2); // Border, BorderShadow
 
     ed::SetCurrentEditor(nullptr);
     m_first_frame = false;
@@ -659,8 +659,8 @@ void application::toolbar() {
     // ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f * scale);
     // ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(toolbar_padding, toolbar_padding));
     // ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, m_colors[editor::Color_ToolbarBg]);
-    ImGui::PushStyleColor(ImGuiCol_Border, m_colors[editor::Color_ToolbarBorder]);
+    // ImGui::PushStyleColor(ImGuiCol_WindowBg, m_colors[editor::Color_ToolbarBg]);
+    // ImGui::PushStyleColor(ImGuiCol_Border, m_colors[editor::Color_ToolbarBorder]);
 
     ImGui::Begin("##toolbar", nullptr,
         ImGuiWindowFlags_NoTitleBar |
@@ -671,9 +671,9 @@ void application::toolbar() {
         ImGuiWindowFlags_NoCollapse);
 
     // Transparent button style
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_colors[editor::Color_ToolbarButtonHovered]);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_colors[editor::Color_ToolbarButtonActive]);
+    // ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    // ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_colors[editor::Color_ToolbarButtonHovered]);
+    // ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_colors[editor::Color_ToolbarButtonActive]);
     // ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f * scale);
 
     // Hamburger menu button
@@ -725,7 +725,7 @@ void application::toolbar() {
     if (ImGui::Button(theme_label, ImVec2(button_size, button_size)))
     {
         m_dark_theme = !m_dark_theme;
-        apply_theme();
+        // apply_theme();
     }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Toggle theme");
@@ -800,12 +800,11 @@ void application::toolbar() {
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * scale);
     ImGui::TextDisabled("%.0f fps", io.Framerate);
 
-    // ImGui::PopStyleVar(1); // FrameRounding
-    ImGui::PopStyleColor(3); // Button colors
+    // ImGui::PopStyleColor(3); // Button colors
 
     ImGui::End();
 
-    ImGui::PopStyleColor(2); // WindowBg, Border
+    // ImGui::PopStyleColor(2); // WindowBg, Border
     // ImGui::PopStyleVar(3); // WindowRounding, WindowPadding, WindowBorderSize
 }
 
