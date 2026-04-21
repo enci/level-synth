@@ -78,7 +78,6 @@ set(LIBRARY_HEADERS
         library/level_synth/pin.hpp
         library/level_synth/node.hpp
         library/level_synth/attribute_grid.hpp
-        library/level_synth/eval_task.hpp
         library/level_synth/eval_context.hpp
         library/level_synth/eval_engine.hpp
         library/level_synth/node_registry.hpp
@@ -90,6 +89,7 @@ set(LIBRARY_HEADERS
         library/level_synth/nodes/node_output_number.hpp
         library/level_synth/nodes/node_noise_grid.hpp
         library/level_synth/grid.hpp
+        library/level_synth/node_graph.hpp
 )
 
 add_library(level_synth_library STATIC
@@ -148,7 +148,6 @@ set(EDITOR_HEADERS
         library/level_synth/node.hpp
         library/level_synth/attribute_grid.hpp
         library/level_synth/eval_context.hpp
-        library/level_synth/eval_task.hpp
 )
 
 add_executable(level_synth_editor

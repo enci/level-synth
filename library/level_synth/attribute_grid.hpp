@@ -4,9 +4,13 @@
 #include <vector>
 #include <span>
 #include <stdexcept>
+#include <unordered_map>
+
+#include "grid.hpp"
 
 namespace ls {
 
+/*
 class attribute_grid {
 public:
     attribute_grid() = default;
@@ -41,5 +45,25 @@ private:
     attribute* find_attr(const std::string& name);
     const attribute* find_attr(const std::string& name) const;
 };
+*/
+
+
+    class attributed_grid
+    {
+    public:
+        attributed_grid(int width, int height);
+
+        grid<int>& attr(std::string_view name);          // creates if missing
+        const grid<int>& attr(std::string_view name) const;
+        bool has(std::string_view name) const;
+        auto names() const;
+
+        int width() const;
+        int height() const;
+
+    private:
+        int m_width, m_height;
+        std::unordered_map<std::string, grid<int>> m_attrs;
+    };
 
 }
