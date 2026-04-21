@@ -25,6 +25,10 @@ public:
 
 #ifdef LS_EDITOR
     virtual void draw_ui() {}
+    virtual bool has_input_default(const std::string& /*pin_name*/) const { return false; }
+    virtual double get_default(const std::string& /*pin_name*/) const { return 0.0; }
+    virtual void set_default(const std::string& /*pin_name*/, double /*value*/) {}
+    virtual bool draw_body_ui() { return false; }
 #endif
 
     int id() const { return m_id; }

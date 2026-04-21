@@ -57,6 +57,23 @@ void node_create_grid::draw_ui() {
     if (ImGui::InputText("Attribute", buf, sizeof(buf)))
         attribute_name = buf;
 }
+
+bool node_create_grid::has_input_default(const std::string& pin_name) const {
+    return pin_name == "width" || pin_name == "height" || pin_name == "fill_value";
+}
+
+double node_create_grid::get_default(const std::string& pin_name) const {
+    if (pin_name == "width")      return default_width;
+    if (pin_name == "height")     return default_height;
+    if (pin_name == "fill_value") return default_fill;
+    return 0.0;
+}
+
+void node_create_grid::set_default(const std::string& pin_name, double value) {
+    if      (pin_name == "width")      default_width  = value;
+    else if (pin_name == "height")     default_height = value;
+    else if (pin_name == "fill_value") default_fill   = value;
+}
 #endif
 
 LS_REGISTER_NODE(node_create_grid);

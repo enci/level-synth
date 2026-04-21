@@ -24,7 +24,7 @@ FetchContent_MakeAvailable(sdl3)
 FetchContent_Declare(
         imgui
         GIT_REPOSITORY https://github.com/ocornut/imgui.git
-        GIT_TAG docking
+        GIT_TAG features/shadows
 )
 FetchContent_MakeAvailable(imgui)
 
@@ -89,6 +89,7 @@ set(LIBRARY_HEADERS
         library/level_synth/nodes/node_output_grid.hpp
         library/level_synth/nodes/node_output_number.hpp
         library/level_synth/nodes/node_noise_grid.hpp
+        library/level_synth/grid.hpp
 )
 
 add_library(level_synth_library STATIC
@@ -164,6 +165,7 @@ target_include_directories(level_synth_editor PRIVATE
         ${IMGUI_DIR}
         ${IMGUI_DIR}/misc/freetype
         ${IMGUI_NODE_EDITOR_DIR}
+        ${IMGUI_NODE_EDITOR_DIR}/external/stb_image
         ${freetype_SOURCE_DIR}/include
 )
 

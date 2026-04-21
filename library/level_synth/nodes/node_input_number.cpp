@@ -37,6 +37,14 @@ void node_input_number::draw_ui() {
     if (ImGui::DragFloat("Default", &val, 0.1f))
         default_value = val;
 }
+
+bool node_input_number::draw_body_ui() {
+    float val = static_cast<float>(default_value);
+    ImGui::SetNextItemWidth(80.0f);
+    bool changed = ImGui::DragFloat("##val", &val, 0.1f);
+    if (changed) default_value = static_cast<double>(val);
+    return changed;
+}
 #endif
 
 LS_REGISTER_NODE(node_input_number);

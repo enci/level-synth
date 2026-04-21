@@ -61,6 +61,19 @@ void node_noise_grid::draw_ui() {
     if (ImGui::InputText("Attribute", buf, sizeof(buf)))
         attribute_name = buf;
 }
+
+bool node_noise_grid::has_input_default(const std::string& pin_name) const {
+    return pin_name == "density";
+}
+
+double node_noise_grid::get_default(const std::string& pin_name) const {
+    if (pin_name == "density") return default_density;
+    return 0.0;
+}
+
+void node_noise_grid::set_default(const std::string& pin_name, double value) {
+    if (pin_name == "density") default_density = value;
+}
 #endif
 
 LS_REGISTER_NODE(node_noise_grid);

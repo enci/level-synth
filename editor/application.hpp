@@ -42,7 +42,6 @@ private:
     void set_dark_theme();
     void set_node_editor_style();
     void apply_theme();
-    void inspector();
     void draw_window_shadow(ImVec2 pos, ImVec2 size, float rounding = 10.0f);
 
     SDL_Window* m_window;
@@ -78,8 +77,7 @@ private:
     };
     int m_next_link_id = 1;
     std::unordered_map<int, wire_visual> m_link_to_wire;  // link_id -> wire info
-    ImVec2 m_popup_canvas_pos = {};                       // canvas pos where right-click was detected
-    int m_inspector_node_id = -1;                         // selected node shown in inspector (-1 = none)
+    ImVec2 m_popup_canvas_pos = {};  // canvas pos where right-click was detected
 
     // Helper functions
     static ax::NodeEditor::PinId make_pin_id(int node_id, int pin_index);
