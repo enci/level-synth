@@ -60,7 +60,7 @@ def create_test_icon(output_path: str, size: int = 256):
     white_cells = {
         # L letter (column 1, rows 1-5, plus bottom row)
         (1, 1), (2, 1), (3, 1), (4, 1), (5, 1),
-        (5, 2), (5, 3),
+        (5, 2), (5, 3), 
         # S letter (columns 3-5, rows 1-5)
         (1, 3), (1, 4), (1, 5),
         (2, 3),

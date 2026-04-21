@@ -89,6 +89,7 @@ set(LIBRARY_HEADERS
         library/level_synth/nodes/node_output_grid.hpp
         library/level_synth/nodes/node_output_number.hpp
         library/level_synth/nodes/node_noise_grid.hpp
+        library/level_synth/nodes/grid.hpp
 )
 
 add_library(level_synth_library STATIC
