@@ -24,7 +24,7 @@ The tool is a testbed for diverse generation techniques, where each technique is
 
 **Integer-only grid cells.** Grid attributes store `int` values. Floats are unnecessary for the core level generation domain — tile types, room IDs, flags, connectivity weights, and depth values are all naturally discrete. Scalar parameters flowing between nodes as pin values are `double`, but once data enters a grid cell it's an int. This simplifies the attribute storage and avoids type variants per cell.
 
-**Two pin types only.** Early designs had separate integer and float pins, but the distinction added complexity without practical benefit. Collapsing to `number` (double) and `grid` (attribute_grid) simplifies wire validation, the pin color palette, and the node authoring API.
+**Two pin types only.** Early designs had separate integer and float pins, but the distinction added complexity without practical benefit. Collapsing to `number` (double) and `grid` (layered_grid) simplifies wire validation, the pin color palette, and the node authoring API.
 
 ### Build targets
 
@@ -45,7 +45,7 @@ Graphs, adjacency matrices, room topologies, and other abstract structures can a
 There are two pin types:
 
 - **Number** (`double`) — scalar parameters like room count, threshold, difficulty
-- **Grid** (`attribute_grid`) — spatial data, topology data, any 2D attributed array
+- **Grid** (`layered_grid`) — spatial data, topology data, any 2D attributed array
 
 Wires are type-checked at connection time: number↔number and grid↔grid only.
 
@@ -105,7 +105,7 @@ Hierarchical model: each node derives its seed from `hash(master_seed, node_id)`
 ```
 library/level_synth/
     level_synth.hpp              umbrella header
-    attribute_grid.hpp/.cpp      core data primitive
+    layered_grid.hpp/.cpp      core data primitive
     pin.hpp                      pin types and pin_value variant
     eval_task.hpp                coroutine return type (header-only)
     eval_context.hpp/.cpp        per-node input/output access
@@ -133,7 +133,7 @@ editor/
 ### Core
 - [x] Attributed grid (int attributes, named, per-cell access, bulk span access)
 - [x] Pin types (number, grid)
-- [x] Pin value variant (double, shared_ptr\<attribute_grid\>)
+- [x] Pin value variant (double, shared_ptr\<layered_grid\>)
 - [x] Node base class with virtual evaluate (coroutine), draw_ui (editor-only)
 - [x] Node descriptor (name, category, typed pin definitions)
 - [x] Eval context (input/output access, seeded RNG)

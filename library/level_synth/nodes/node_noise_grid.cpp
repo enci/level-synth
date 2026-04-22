@@ -1,6 +1,6 @@
 #include "node_noise_grid.hpp"
 #include "../eval_context.hpp"
-#include "../attribute_grid.hpp"
+#include "../layered_grid.hpp"
 #include "../node_registry.hpp"
 #ifdef LS_EDITOR
 #include <imgui.h>
@@ -30,7 +30,7 @@ eval_task node_noise_grid::evaluate(eval_context& ctx) {
         : default_density;
 
     const auto& src = ctx.input_grid("grid");
-    auto grid = std::make_shared<attribute_grid>(src);
+    auto grid = std::make_shared<layered_grid>(src);
     grid->add_attribute(attribute_name, 0);
 
     int w = grid->width();

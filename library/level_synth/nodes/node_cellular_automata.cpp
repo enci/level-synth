@@ -1,6 +1,6 @@
 #include "node_cellular_automata.hpp"
 #include "../eval_context.hpp"
-#include "../attribute_grid.hpp"
+#include "../layered_grid.hpp"
 #include "../node_registry.hpp"
 #ifdef LS_EDITOR
 #include <imgui.h>
@@ -24,7 +24,7 @@ const node_descriptor& node_cellular_automata::descriptor() const {
     return desc;
 }
 
-static int count_neighbors(const attribute_grid& grid, const std::string& attr, int x, int y) {
+static int count_neighbors(const layered_grid& grid, const std::string& attr, int x, int y) {
     int count = 0;
     for (int dy = -1; dy <= 1; dy++) {
         for (int dx = -1; dx <= 1; dx++) {
@@ -57,11 +57,11 @@ eval_task node_cellular_automata::evaluate(eval_context& ctx) {
         ? static_cast<int>(ctx.input_number("death"))
         : static_cast<int>(default_death);
 
-    auto output = std::make_shared<attribute_grid>(input);
+    auto output = std::make_shared<layered_grid>(input);
 
     for (int i = 0; i < iterations; i++) {
         // Snapshot current state for neighbor reads
-        attribute_grid prev(*output);
+        layered_grid prev(*output);
 
         int w = output->width();
         int h = output->height();

@@ -1,6 +1,6 @@
 #include "generator.hpp"
 #include "eval_engine.hpp"
-#include "attribute_grid.hpp"
+#include "layered_grid.hpp"
 #include "nodes/node_input_number.hpp"
 #include "nodes/node_output_grid.hpp"
 #include "nodes/node_output_number.hpp"
@@ -9,17 +9,18 @@
 
 namespace ls {
 
-generator::generator()
-    : m_engine(std::make_unique<eval_engine>()) {}
+generator::generator() {}
 
 generator::~generator() = default;
 
+    /*
 generator::generator(const std::string& filepath)
     : m_engine(std::make_unique<eval_engine>()) {
     // TODO: load graph from file
 }
+*/
 
-eval_engine& generator::engine() { return *m_engine; }
+eval_engine& generator::engine() { return m_engine; }
 const eval_engine& generator::engine() const { return *m_engine; }
 
 void generator::set_parameter(const std::string& name, double value) {
@@ -42,7 +43,7 @@ void generator::evaluate() {
     m_engine->evaluate(m_seed);
 }
 
-std::shared_ptr<attribute_grid> generator::get_grid_output(const std::string& name) const {
+std::shared_ptr<layered_grid> generator::get_grid_output(const std::string& name) const {
     auto it = m_output_nodes.find(name);
     if (it == m_output_nodes.end())
         throw std::runtime_error("Unknown output: " + name);
@@ -50,7 +51,7 @@ std::shared_ptr<attribute_grid> generator::get_grid_output(const std::string& na
     auto* val = m_engine->get_output(it->second, "value");
     if (!val) return nullptr;
 
-    return std::get<std::shared_ptr<attribute_grid>>(*val);
+    return std::get<std::shared_ptr<layered_grid>>(*val);
 }
 
 double generator::get_number_output(const std::string& name) const {

@@ -70,6 +70,7 @@ set(LIBRARY_SOURCES
         library/level_synth/nodes/node_output_grid.cpp
         library/level_synth/nodes/node_output_number.cpp
         library/level_synth/nodes/node_noise_grid.cpp
+        library/level_synth/node_graph.cpp
 )
 
 set(LIBRARY_HEADERS
@@ -184,7 +185,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(level_synth_tests
-        tests/test_attribute_grid.cpp
+        tests/test_layered_grid.cpp
 )
 
 target_link_libraries(level_synth_tests PRIVATE

@@ -33,8 +33,8 @@ public:
     int height() const { return m_height; }
 
 private:
-    int m_width;
-    int m_height;
+    int m_width = -1;
+    int m_height = -1;
     std::vector<T> m_data;
 };
 

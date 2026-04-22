@@ -20,7 +20,7 @@
 #include <level_synth/nodes/node_output_grid.hpp>
 #include <level_synth/nodes/node_output_number.hpp>
 #include <level_synth/node_registry.hpp>
-#include <level_synth/attribute_grid.hpp>
+#include <level_synth/layered_grid.hpp>
 #include <map>
 #include <set>
 #include <algorithm>
@@ -433,9 +433,9 @@ void application::node_editor() {
                 for (const auto& pin : desc.pins) {
                     if (pin.type != ls::pin_type::grid) continue;
                     const auto* val = eng.get_output(node_id, pin.name);
-                    if (!val || !std::holds_alternative<std::shared_ptr<ls::attribute_grid>>(*val))
+                    if (!val || !std::holds_alternative<std::shared_ptr<ls::layered_grid>>(*val))
                         continue;
-                    const auto& grid = std::get<std::shared_ptr<ls::attribute_grid>>(*val);
+                    const auto& grid = std::get<std::shared_ptr<ls::layered_grid>>(*val);
                     if (!grid || grid->width() == 0 || grid->height() == 0) continue;
 
                     const auto attrs = grid->attribute_names();
