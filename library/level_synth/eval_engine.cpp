@@ -96,6 +96,10 @@ void eval_engine::evaluate(node_graph& graph, int master_seed) {
     }
 }
 
+void eval_engine::invalidate_all() {
+    m_cache.clear();
+}
+
 const pin_value* eval_engine::get_output(int node_id, const std::string& pin_name) const {
     auto cache_it = m_cache.find(node_id);
     if (cache_it == m_cache.end()) return nullptr;

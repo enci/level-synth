@@ -26,6 +26,7 @@ public:
 
     eval_engine& engine() { return m_engine; }
     node_graph& graph() { return m_graph; }
+    const node_graph& graph() const { return m_graph; }
 
 private:
     node_graph m_graph;
