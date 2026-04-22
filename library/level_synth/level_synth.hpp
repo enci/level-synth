@@ -1,5 +1,6 @@
 #pragma once
 
+#include "grid.hpp"
 #include "pin.hpp"
 #include "node.hpp"
 #include "eval_context.hpp"
