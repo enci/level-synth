@@ -57,6 +57,7 @@ private:
 
     bool m_dark_theme = true;
     bool m_show_demo_window = false;
+    int m_seed = 42;
     int m_redraw_frames = 0;           // extra frames to render after activity
     static constexpr int k_cooldown_frames = 3;  // frames to keep rendering after last event
     static Uint32 s_redraw_event_type; // custom SDL event for cross-thread wake-up
@@ -80,7 +81,14 @@ private:
     ImVec2 m_popup_canvas_pos = {};  // canvas pos where right-click was detected
 
     // Helper functions
+    // Node editor IDs share a flat namespace — tag each type with distinct high bits
+    // to prevent collisions between node IDs, pin IDs, and link IDs.
+    static constexpr uintptr_t k_node_tag = uintptr_t(0x10000000);
+    static constexpr uintptr_t k_pin_tag  = uintptr_t(0x20000000);
+    static constexpr uintptr_t k_link_tag = uintptr_t(0x40000000);
+    static ax::NodeEditor::NodeId make_node_id(int node_id);
     static ax::NodeEditor::PinId make_pin_id(int node_id, int pin_index);
+    static ax::NodeEditor::LinkId make_link_id(int link_id);
     static std::pair<int, int> unpack_pin_id(ax::NodeEditor::PinId pin_id);
     ImVec4 pin_color(ls::pin_type type) const;
     ImVec4 category_color(const std::string& category) const;

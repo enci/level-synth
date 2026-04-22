@@ -20,6 +20,7 @@
 #include <level_synth/nodes/node_output_grid.hpp>
 #include <level_synth/nodes/node_output_number.hpp>
 #include <level_synth/node_registry.hpp>
+#include <level_synth/grid.hpp>
 #include <map>
 #include <set>
 #include <algorithm>
@@ -174,19 +175,21 @@ void application::init_node_editor() {
     ed::SetCurrentEditor(m_node_editor_context);
 
     // Test graph: Create Grid -> Noise Grid -> Cellular Automata -> Output Grid
-    auto& eng = m_generator.engine();
-    int create_id = eng.add_node(std::make_unique<ls::node_create_grid>());
-    int noise_id  = eng.add_node(std::make_unique<ls::node_noise_grid>());
-    int ca_id     = eng.add_node(std::make_unique<ls::node_cellular_automata>());
-    int out_id    = eng.add_node(std::make_unique<ls::node_output_grid>());
+    auto& graph = m_generator.graph();
+    int create_id = graph.add_node(std::make_unique<ls::node_create_grid>());
+    int noise_id  = graph.add_node(std::make_unique<ls::node_noise_grid>());
+    int ca_id     = graph.add_node(std::make_unique<ls::node_cellular_automata>());
+    int out_id    = graph.add_node(std::make_unique<ls::node_output_grid>());
 
-    eng.add_wire({ create_id, "grid", noise_id, "grid"   });
-    eng.add_wire({ noise_id,  "grid", ca_id,    "input"  });
-    eng.add_wire({ ca_id,  "output", out_id,    "value"  });
+    graph.add_wire({ create_id, "grid", noise_id, "grid"   });
+    graph.add_wire({ noise_id,  "grid", ca_id,    "input"  });
+    graph.add_wire({ ca_id,  "output", out_id,    "value"  });
 
     m_link_to_wire[m_next_link_id++] = { create_id, "grid", noise_id, "grid"   };
     m_link_to_wire[m_next_link_id++] = { noise_id,  "grid", ca_id,    "input"  };
     m_link_to_wire[m_next_link_id++] = { ca_id,  "output", out_id,    "value"  };
+
+    m_generator.evaluate();
 }
 
 void application::run() {
@@ -297,13 +300,21 @@ void application::cleanup() {
     SDL_Quit();
 }
 
+ed::NodeId application::make_node_id(int node_id) {
+    return ed::NodeId(k_node_tag | static_cast<uintptr_t>(node_id));
+}
+
 ed::PinId application::make_pin_id(int node_id, int pin_index) {
-    return ed::PinId(static_cast<uintptr_t>(node_id) << 16 | static_cast<uintptr_t>(pin_index));
+    return ed::PinId(k_pin_tag | (static_cast<uintptr_t>(node_id) << 8) | static_cast<uintptr_t>(pin_index));
+}
+
+ed::LinkId application::make_link_id(int link_id) {
+    return ed::LinkId(k_link_tag | static_cast<uintptr_t>(link_id));
 }
 
 std::pair<int, int> application::unpack_pin_id(ed::PinId pin_id) {
-    auto val = pin_id.Get();
-    return { static_cast<int>(val >> 16), static_cast<int>(val & 0xFFFF) };
+    auto val = pin_id.Get() & ~k_pin_tag;
+    return { static_cast<int>(val >> 8), static_cast<int>(val & 0xFF) };
 }
 
 ImVec4 application::pin_color(ls::pin_type type) const {
@@ -323,7 +334,7 @@ ImVec4 application::category_color(const std::string& category) const {
 
 application::pin_info application::resolve_pin(ed::PinId pin_id) const {
     auto [node_id, pin_index] = unpack_pin_id(pin_id);
-    auto* n = m_generator.engine().find_node(node_id);
+    auto* n = m_generator.graph().find_node(node_id);
     if (!n) return { node_id, pin_index, nullptr };
     const auto& desc = n->descriptor();
     if (pin_index < 0 || pin_index >= static_cast<int>(desc.pins.size()))
@@ -338,6 +349,7 @@ void application::node_editor() {
     ed::Begin("Level Synth", ImVec2(0.0, 0.0f));
 
     auto& eng = m_generator.engine();
+    auto& graph = m_generator.graph();
     ed::NodeBuilder builder;
     const ImVec2 icon_size(16, 16);
 
@@ -346,22 +358,20 @@ void application::node_editor() {
     for (const auto& [lid, wv] : m_link_to_wire)
         connected_inputs.emplace(wv.to_node, wv.to_pin);
 
-    // --- Render all nodes from engine ---
-    for (int node_id : eng.node_ids()) {
-        auto* n = eng.find_node(node_id);
+    // --- Render all nodes ---
+    for (int node_id : graph.node_ids()) {
+        auto* n = graph.find_node(node_id);
         if (!n) continue;
 
         const auto& desc = n->descriptor();
         ImVec4 header_color = category_color(desc.category);
 
         if (m_first_frame) {
-            ed::SetNodePosition(ed::NodeId(node_id),
+            ed::SetNodePosition(make_node_id(node_id),
                 ImVec2(10.0f + (node_id - 1) * 300.0f, 10.0f));
         }
 
-        bool node_changed = false;
-
-        builder.Begin(ed::NodeId(node_id));
+        builder.Begin(make_node_id(node_id));
         {
             builder.Header(header_color);
                 ImGui::TextUnformatted(desc.name.c_str());
@@ -383,15 +393,7 @@ void application::node_editor() {
                     ed::BeginPin(pid, ed::PinKind::Input);
                         ed::DrawPinIcon(icon_size, ed::PinIconType::Circle, is_connected, color);
                         ImGui::SameLine();
-                        if (!is_connected && pin.type == ls::pin_type::number
-                                          && n->has_input_default(pin.name)) {
-                            float val = static_cast<float>(n->get_default(pin.name));
-                            ImGui::SetNextItemWidth(60.0f);
-                            if (ImGui::DragFloat(pin.name.c_str(), &val, 0.1f)) {
-                                n->set_default(pin.name, static_cast<double>(val));
-                                node_changed = true;
-                            }
-                        } else if (is_connected) {
+                        if (is_connected) {
                             ImGui::TextDisabled("%s", pin.name.c_str());
                         } else {
                             ImGui::TextUnformatted(pin.name.c_str());
@@ -421,8 +423,7 @@ void application::node_editor() {
             }
             builder.EndColumns();
 
-            if (n->draw_body_ui())
-                node_changed = true;
+            n->edit();
 
             // Grid preview — only on sink nodes (all pins are inputs, e.g. Output Grid)
             const bool is_sink = std::none_of(desc.pins.begin(), desc.pins.end(),
@@ -432,32 +433,32 @@ void application::node_editor() {
                 for (const auto& pin : desc.pins) {
                     if (pin.type != ls::pin_type::grid) continue;
                     const auto* val = eng.get_output(node_id, pin.name);
-                    if (!val || !std::holds_alternative<std::shared_ptr<ls::layered_grid>>(*val))
+                    if (!val || !std::holds_alternative<std::shared_ptr<ls::grid>>(*val))
                         continue;
-                    const auto& grid = std::get<std::shared_ptr<ls::layered_grid>>(*val);
-                    if (!grid || grid->width() == 0 || grid->height() == 0) continue;
-
-                    const auto attrs = grid->attribute_names();
-                    if (attrs.empty()) continue;
-                    const std::string& attr = attrs[0];
+                    const auto& g = std::get<std::shared_ptr<ls::grid>>(*val);
+                    if (!g || g->width() == 0 || g->height() == 0) continue;
 
                     constexpr float k_preview_w = 150.0f;
-                    const float cell      = k_preview_w / static_cast<float>(grid->width());
-                    const float preview_h = cell * static_cast<float>(grid->height());
+                    const float cell      = k_preview_w / static_cast<float>(g->width());
+                    const float preview_h = cell * static_cast<float>(g->height());
 
-                    const auto& cells = grid->data(attr);
-                    const int min_v = *std::min_element(cells.begin(), cells.end());
-                    const int max_v = *std::max_element(cells.begin(), cells.end());
+                    int min_v = g->get(0, 0), max_v = g->get(0, 0);
+                    for (int py = 0; py < g->height(); py++)
+                        for (int px = 0; px < g->width(); px++) {
+                            int cv = g->get(px, py);
+                            min_v = std::min(min_v, cv);
+                            max_v = std::max(max_v, cv);
+                        }
                     const int range = std::max(1, max_v - min_v);
 
                     ImVec2 origin = ImGui::GetCursorScreenPos();
                     ImDrawList* dl = ImGui::GetWindowDrawList();
-                    for (int y = 0; y < grid->height(); y++) {
-                        for (int x = 0; x < grid->width(); x++) {
-                            float t = static_cast<float>(grid->get(attr, x, y) - min_v)
+                    for (int py = 0; py < g->height(); py++) {
+                        for (int px = 0; px < g->width(); px++) {
+                            float t = static_cast<float>(g->get(px, py) - min_v)
                                       / static_cast<float>(range);
                             int v = static_cast<int>(t * 210 + 20);
-                            ImVec2 p0(origin.x + x * cell,  origin.y + y * cell);
+                            ImVec2 p0(origin.x + px * cell,  origin.y + py * cell);
                             ImVec2 p1(p0.x + cell + 0.5f,   p0.y + cell + 0.5f);
                             dl->AddRectFilled(p0, p1, IM_COL32(v, v, v, 255));
                         }
@@ -468,16 +469,13 @@ void application::node_editor() {
             }
         }
         builder.End();
-
-        if (node_changed)
-            eng.invalidate(node_id);
     }
 
     // --- Render links from side map ---
     for (const auto& [link_id, wv] : m_link_to_wire) {
         // Find output pin ID
-        auto* from_node = eng.find_node(wv.from_node);
-        auto* to_node = eng.find_node(wv.to_node);
+        auto* from_node = graph.find_node(wv.from_node);
+        auto* to_node = graph.find_node(wv.to_node);
         if (!from_node || !to_node) continue;
 
         const auto& from_desc = from_node->descriptor();
@@ -505,7 +503,7 @@ void application::node_editor() {
             }
         }
 
-        ed::Link(ed::LinkId(link_id), from_pin_id, to_pin_id, link_color, 2.0f);
+        ed::Link(make_link_id(link_id), from_pin_id, to_pin_id, link_color, 2.0f);
     }
 
     // --- Handle new connections ---
@@ -538,7 +536,7 @@ void application::node_editor() {
                 if (can_connect) {
                     if (ed::AcceptNewItem()) {
                         ls::wire w{ src_node, src_pin, dst_node, dst_pin };
-                        eng.add_wire(w);
+                        graph.add_wire(w);
 
                         int link_id = m_next_link_id++;
                         m_link_to_wire[link_id] = { src_node, src_pin, dst_node, dst_pin };
@@ -557,12 +555,12 @@ void application::node_editor() {
         ed::LinkId deleted_link_id;
         while (ed::QueryDeletedLink(&deleted_link_id)) {
             if (ed::AcceptDeletedItem()) {
-                int lid = static_cast<int>(deleted_link_id.Get());
+                int lid = static_cast<int>(deleted_link_id.Get() & ~k_link_tag);
                 auto it = m_link_to_wire.find(lid);
                 if (it != m_link_to_wire.end()) {
                     const auto& wv = it->second;
-                    eng.remove_wire(wv.from_node, wv.from_pin,
-                                    wv.to_node, wv.to_pin);
+                    graph.remove_wire(wv.from_node, wv.from_pin,
+                                      wv.to_node, wv.to_pin);
                     m_link_to_wire.erase(it);
                 }
             }
@@ -572,7 +570,7 @@ void application::node_editor() {
         ed::NodeId deleted_node_id;
         while (ed::QueryDeletedNode(&deleted_node_id)) {
             if (ed::AcceptDeletedItem()) {
-                int nid = static_cast<int>(deleted_node_id.Get());
+                int nid = static_cast<int>(deleted_node_id.Get() & ~k_node_tag);
 
                 // Remove associated links
                 std::erase_if(m_link_to_wire, [&](const auto& pair) {
@@ -580,7 +578,7 @@ void application::node_editor() {
                     return wv.from_node == nid || wv.to_node == nid;
                 });
 
-                eng.remove_node(nid);
+                graph.remove_node(nid);
             }
         }
     }
@@ -618,8 +616,8 @@ void application::node_editor() {
                 for (const auto& type_name : type_names) {
                     const auto& desc = reg.descriptor(type_name);
                     if (ImGui::MenuItem(desc.name.c_str())) {
-                        int nid = eng.add_node(reg.create(type_name));
-                        ed::SetNodePosition(ed::NodeId(nid), m_popup_canvas_pos);
+                        int nid = graph.add_node(reg.create(type_name));
+                        ed::SetNodePosition(make_node_id(nid), m_popup_canvas_pos);
                     }
                 }
                 ImGui::EndMenu();
@@ -647,7 +645,7 @@ void application::toolbar() {
     const float button_size = 24.0f * scale;
 
     // Position at top-center
-    float toolbar_width = 420.0f * scale;
+    float toolbar_width = 540.0f * scale;
     float toolbar_x = (m_width - toolbar_width) * 0.5f;
     float toolbar_y = 12.0f * scale;
 
@@ -774,12 +772,24 @@ void application::toolbar() {
     ed::SetCurrentEditor(nullptr);
 
     ImGui::SameLine();
+
+    // Seed input + Evaluate button
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
     ImGui::SameLine();
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * scale);
+    ImGui::TextUnformatted("Seed");
+    ImGui::SameLine();
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 4.0f * scale);
+    ImGui::SetNextItemWidth(64.0f * scale);
+    ImGui::DragInt("##seed", &m_seed);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Global generation seed");
+    ImGui::SameLine();
 
-    // Evaluate button
-    if (ImGui::Button(ICON_FI_PLAY, ImVec2(button_size, button_size)))
-        m_generator.engine().evaluate(0);
+    if (ImGui::Button(ICON_FI_PLAY, ImVec2(button_size, button_size))) {
+        m_generator.set_seed(m_seed);
+        m_generator.evaluate();
+    }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Evaluate graph");
 
