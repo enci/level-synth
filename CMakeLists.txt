@@ -60,7 +60,6 @@ FetchContent_MakeAvailable(freetype)
 
 # ---- Library target ----
 set(LIBRARY_SOURCES
-        library/level_synth/attribute_grid.cpp
         library/level_synth/eval_context.cpp
         library/level_synth/eval_engine.cpp
         library/level_synth/node_registry.cpp
@@ -77,7 +76,6 @@ set(LIBRARY_HEADERS
         library/level_synth/level_synth.hpp
         library/level_synth/pin.hpp
         library/level_synth/node.hpp
-        library/level_synth/attribute_grid.hpp
         library/level_synth/eval_context.hpp
         library/level_synth/eval_engine.hpp
         library/level_synth/node_registry.hpp
@@ -146,7 +144,6 @@ set(EDITOR_HEADERS
         ${EDITOR_DIR}/application.hpp
         ${EDITOR_DIR}/nodes/node_colors.hpp
         library/level_synth/node.hpp
-        library/level_synth/attribute_grid.hpp
         library/level_synth/eval_context.hpp
 )
 
