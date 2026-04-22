@@ -185,7 +185,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(level_synth_tests
-        tests/test_grid.cpp
+        tests/test_library.cpp
 )
 
 target_link_libraries(level_synth_tests PRIVATE
