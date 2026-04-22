@@ -1,4 +1,5 @@
 #pragma once
+
 #include <vector>
 #include <memory>
 #include <unordered_map>
@@ -25,7 +26,6 @@ public:
     void add_wire(const wire& w);
     void remove_wire(int from_node, const std::string& from_pin,
                      int to_node, const std::string& to_pin);
-
     // TODO: Maybe add an option to remove by value
 
     node* find_node(int node_id);
@@ -40,11 +40,3 @@ private:
 };
 
 }
-
-
-/*
-// Evaluate the whole graph
-void evaluate();
-
-const pin_value* get_output(int node_id, const std::string& pin_name) const;
-*/

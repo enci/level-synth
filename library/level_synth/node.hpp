@@ -21,6 +21,7 @@ public:
     virtual const node_descriptor& descriptor() const = 0;
     virtual bool evaluate(eval_context& ctx) = 0;
     int id() const { return m_id; }
+    const std::string& name() const { return m_name; }
 
 #ifdef LS_EDITOR
     virtual void edit() {}
@@ -29,6 +30,7 @@ public:
 private:
     friend class eval_engine;
     int m_id = 0;
+    std::string m_name;
 };
 
 }
