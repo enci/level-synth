@@ -19,6 +19,9 @@ const node_descriptor& node_output_number::descriptor() const {
     return desc;
 }
 
-bool node_output_number::evaluate(eval_context& ctx) {}
+bool node_output_number::evaluate(eval_context& ctx) {
+    ctx.set_output_number("value", ctx.input_number("value"));
+    return true;
+}
 
 } // namespace ls

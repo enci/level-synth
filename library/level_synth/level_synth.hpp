@@ -2,7 +2,6 @@
 
 #include "pin.hpp"
 #include "node.hpp"
-#include "layered_grid.hpp"
 #include "eval_context.hpp"
 #include "eval_engine.hpp"
 #include "node_registry.hpp"

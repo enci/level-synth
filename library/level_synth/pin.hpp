@@ -6,7 +6,7 @@
 
 namespace ls {
 
-class layered_grid;
+class grid;
 
 enum class pin_type {
     number,
@@ -27,7 +27,7 @@ struct pin_descriptor {
 
 using pin_value = std::variant<
     double,
-    std::shared_ptr<layered_grid>
+    std::shared_ptr<grid>
 >;
 
 } // namespace ls

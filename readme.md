@@ -8,23 +8,21 @@ The tool is a testbed for diverse generation techniques, where each technique is
 
 ### Design principles
 
-**No game-specific semantics in the core.** The tool doesn't know what a "room," "enemy," or "door" is. The attributed grid is a generic 2D container with named integer layers. Meaning comes from the user's node graph, not the data model. This keeps the tool general and extensible across genres and styles.
+**No game-specific semantics in the core.** The tool doesn't know what a "room," "enemy," or "door" is. The grid is a generic 2D container of integers. Meaning comes from the user's node graph, not the data model. This keeps the tool general and extensible across genres and styles.
 
-**One universal data primitive.** Rather than having separate types for spatial grids, topology graphs, adjacency matrices, and property tables, everything is an attributed grid. A dungeon floor is a 64×64 grid with a "terrain" attribute. A room connectivity graph is a 12×12 grid with a "connected" attribute. A list of room properties is a 12×1 grid with "type" and "difficulty" attributes. Same primitive, different interpretation. This mirrors Houdini's philosophy of "everything is geometry with attributes."
+**One universal data primitive.** Everything flowing through grid pins is a plain 2D integer grid. A dungeon floor is a 64×64 grid. A room connectivity graph is a 12×12 grid where cell (i,j) encodes adjacency. Same primitive, different interpretation.
 
-**Multiple output pins, not bundled data.** When a node produces grids of different dimensions (e.g. a BSP node outputs both a 64×64 spatial grid and a 12×12 room adjacency grid), it uses separate output pins rather than bundling them into a compound type. This keeps the attributed grid simple (one grid = one resolution) and lets users wire each output independently.
+**Multiple output pins, not bundled data.** When a node produces grids of different dimensions (e.g. a BSP node outputs both a 64×64 spatial grid and a 12×12 adjacency grid), it uses separate output pins rather than bundling them. This lets users wire each output independently.
 
-**Immutable inputs, fresh outputs.** Nodes receive const references to their input grids and always produce new output grids. This enables caching (if inputs haven't changed, skip re-evaluation) and step-through debugging (every intermediate result is preserved and inspectable). The evaluation engine owns all cached data; nodes borrow via references.
+**Immutable inputs, fresh outputs.** Nodes receive const references to their input grids and always produce new output grids. The evaluation engine owns all cached data; nodes borrow via references.
 
 **Runtime descriptors, not compile-time types.** Node pin definitions are runtime data (the `node_descriptor` struct), not template parameters or macros. This enables the plugin/SDK model where third parties register node types via shared libraries without recompiling the editor. Type checking (number↔number, grid↔grid) happens at wire connection time in the editor.
 
-**Coroutines for granular debugging.** Node evaluation uses C++20 coroutines. A node can `co_yield` after each meaningful step (e.g. each iteration of cellular automata, each room carved). In normal mode, the engine drives the coroutine to completion instantly. In debug mode, each yield pauses execution, updates the preview, and waits for the user. This is a single code path — no separate "debug evaluate" method.
+**Separation of editor and runtime.** The `#ifdef LS_EDITOR` guard on `edit()` means node authors write logic and UI in one class, but the SDK build never sees ImGui headers. The generator class treats a node graph as a black box with named inputs and outputs, suitable for embedding in a game.
 
-**Separation of editor and runtime.** The library has zero UI dependencies. The `#ifdef LS_EDITOR` guard on `draw_ui()` means node authors write logic and UI in one class, but the SDK build never sees ImGui headers. The generator class treats a node graph as a black box with named inputs and outputs, suitable for embedding in a game.
+**Integer-only grid cells.** Grid cells store `int` values. Floats are unnecessary for the core level generation domain — tile types, room IDs, flags, and connectivity weights are all naturally discrete. Scalar parameters flowing between nodes as pin values are `double`, but once data enters a grid cell it's an int.
 
-**Integer-only grid cells.** Grid attributes store `int` values. Floats are unnecessary for the core level generation domain — tile types, room IDs, flags, connectivity weights, and depth values are all naturally discrete. Scalar parameters flowing between nodes as pin values are `double`, but once data enters a grid cell it's an int. This simplifies the attribute storage and avoids type variants per cell.
-
-**Two pin types only.** Early designs had separate integer and float pins, but the distinction added complexity without practical benefit. Collapsing to `number` (double) and `grid` (layered_grid) simplifies wire validation, the pin color palette, and the node authoring API.
+**Two pin types only.** Collapsing to `number` (double) and `grid` simplifies wire validation, the pin color palette, and the node authoring API.
 
 ### Build targets
 
@@ -36,9 +34,9 @@ The project has two main targets:
 
 ### Core data primitive
 
-The **attributed grid** is the universal data container. It is a 2D array where each cell can carry multiple named integer attributes (e.g. "terrain", "room_id", "depth"). All data flowing through grid pins is an attributed grid. There are no hardcoded game-specific semantics — interpretation is entirely up to the user's node graph.
+The **grid** is the universal data container. It is a 2D array of integers (`int`). All data flowing through grid pins is a grid. There are no hardcoded game-specific semantics — interpretation is entirely up to the user's node graph.
 
-Graphs, adjacency matrices, room topologies, and other abstract structures can all be represented as grids. A room graph with 12 rooms is a 12×12 grid where cell (i,j) stores edge weight. Room attributes are additional columns on an N×1 grid.
+Abstract structures like adjacency matrices and topology graphs can be represented as grids. A room graph with 12 rooms is a 12×12 grid where cell (i,j) stores edge weight.
 
 ### Pin types
 
@@ -54,31 +52,23 @@ Wires are type-checked at connection time: number↔number and grid↔grid only.
 Nodes are defined as C++ classes inheriting from `ls::node`. Each provides:
 
 - A **descriptor** (name, category, pin definitions) — static, used by the editor for rendering
-- An **evaluate** method (a C++20 coroutine returning `eval_task`) — can `co_yield` intermediate steps for debug visualization
-- A **draw_ui** method (editor-only, behind `#ifdef LS_EDITOR`) — custom ImGui widgets for node-specific parameters
-- Member variables for node configuration (defaults for unconnected pins, property strings, etc.)
+- An **evaluate** method returning `bool` — synchronous, runs to completion
+- An **edit** method (editor-only, behind `#ifdef LS_EDITOR`) — custom ImGui widgets for node-specific parameters
+- Member variables for node configuration (defaults for unconnected pins, etc.)
 
 Node types are registered in the `node_registry` with a string key and factory function. The editor's right-click context menu is populated from the registry, grouped by category.
 
 ### Evaluation
 
-The `eval_engine` owns all nodes and wires. Evaluation proceeds in topological order. For each node:
+The `eval_engine` evaluates a `node_graph`. Evaluation proceeds in topological order. For each node:
 
 1. A fresh `eval_context` is created
 2. Inputs are populated from upstream cached outputs
 3. RNG is seeded deterministically: `hash(master_seed, node_id)`
-4. The node's coroutine runs
+4. The node's `evaluate()` runs
 5. Outputs are cached
 
-Caching means only invalidated nodes re-evaluate. Adding/removing a wire invalidates the target node and everything downstream.
-
-### Stepping and debugging
-
-The coroutine-based evaluation supports three modes:
-
-- **Normal** — run to completion instantly
-- **Step-through** — pause after each node, inspect intermediate outputs
-- **Animated** — resume on a timer, watch generation unfold (e.g. cellular automata iterating)
+The cache is cleared at the start of each full evaluation.
 
 ### Generator I/O
 
@@ -105,16 +95,17 @@ Hierarchical model: each node derives its seed from `hash(master_seed, node_id)`
 ```
 library/level_synth/
     level_synth.hpp              umbrella header
-    layered_grid.hpp/.cpp      core data primitive
+    grid.hpp                     core data primitive (header-only)
     pin.hpp                      pin types and pin_value variant
-    eval_task.hpp                coroutine return type (header-only)
     eval_context.hpp/.cpp        per-node input/output access
-    eval_engine.hpp/.cpp         graph ownership, topological eval, caching, stepping
+    eval_engine.hpp/.cpp         topological eval and caching
     node.hpp                     base class for all nodes
+    node_graph.hpp/.cpp          graph ownership (nodes + wires)
     node_registry.hpp/.cpp       string-keyed factory registry
     generator.hpp/.cpp           SDK-facing wrapper
     nodes/
         node_create_grid.hpp/.cpp
+        node_noise_grid.hpp/.cpp
         node_cellular_automata.hpp/.cpp
         node_input_number.hpp/.cpp
         node_output_grid.hpp/.cpp
@@ -131,22 +122,22 @@ editor/
 ## Implementation status
 
 ### Core
-- [x] Attributed grid (int attributes, named, per-cell access, bulk span access)
+- [x] Grid (single-layer 2D int array)
 - [x] Pin types (number, grid)
-- [x] Pin value variant (double, shared_ptr\<layered_grid\>)
-- [x] Node base class with virtual evaluate (coroutine), draw_ui (editor-only)
+- [x] Pin value variant (double, shared_ptr\<grid\>)
+- [x] Node base class with virtual evaluate (bool), edit (editor-only)
 - [x] Node descriptor (name, category, typed pin definitions)
 - [x] Eval context (input/output access, seeded RNG)
-- [x] Eval task (C++20 coroutine wrapper with yield/resume/run)
-- [x] Eval engine (topological sort, build context, evaluate, cache, invalidate)
-- [x] Eval engine stepping (begin_stepping, step, current_node_id, current_step)
+- [x] Eval engine (topological sort, build context, evaluate, cache)
+- [x] Node graph (nodes + wires, add/remove)
 - [x] Node registry (string-keyed factory, create, registered_types, descriptor)
-- [x] Generator (set_parameter, set_seed, evaluate, get_grid_output, get_number_output, rebuild_bindings)
+- [x] Generator (set_seed, evaluate, get_grid_output, get_number_output, rebuild_bindings)
 
 ### Built-in nodes
-- [x] Create Grid (width, height, fill_value, attribute_name)
-- [x] Cellular Automata (input grid, iterations, birth/death thresholds, co_yield per iteration)
-- [x] Input Number (named parameter with default and runtime override)
+- [x] Create Grid (width, height, fill_value)
+- [x] Noise Grid (binary random fill with density parameter)
+- [x] Cellular Automata (input grid, iterations, birth/death thresholds)
+- [x] Input Number (named parameter with default)
 - [x] Output Grid (named grid sink)
 - [x] Output Number (named number sink)
 
@@ -163,10 +154,8 @@ editor/
 - [ ] Wire and node deletion
 - [ ] Node property panel (inspector for selected node's parameters)
 - [ ] Grid preview panel (color-mapped cell view of any output pin)
-- [ ] Attribute selector in preview (choose which attribute to visualize)
-- [ ] Step-through debug UI (play/pause/step buttons, current node highlight)
-- [ ] Animated step-through (timer-driven resume)
-- [ ] Diff view (highlight changed cells after re-evaluation)
+- [ ] Attribute selector in preview (choose which layer to visualize)
+- [ ] Re-evaluate on graph change
 
 ### Planned node types
 - [ ] Random Fill (binary noise from seeded RNG, density parameter)

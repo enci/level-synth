@@ -9,18 +9,16 @@
 
 namespace ls {
 
-class layered_grid;
 class eval_engine;
 
 class generator {
 public:
     generator();
     ~generator();
-    // explicit generator(const std::string& filepath);
     void set_parameter(const std::string& name, double value);
     void set_seed(int seed);
     void evaluate();
-    std::shared_ptr<layered_grid> get_grid_output(const std::string& name) const;
+    std::shared_ptr<grid> get_grid_output(const std::string& name) const;
     double get_number_output(const std::string& name) const;
     void rebuild_bindings();
 

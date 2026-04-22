@@ -19,23 +19,11 @@ const node_descriptor& node_output_grid::descriptor() const {
     return desc;
 }
 
-eval_task node_output_grid::evaluate(eval_context& ctx) {
-    if (!ctx.has_input("value")) co_return;
+bool node_output_grid::evaluate(eval_context& ctx) {
+    if (!ctx.has_input("value")) return false;
     ctx.set_output_grid("value",
-        std::get<std::shared_ptr<layered_grid>>(ctx.input_raw("value")));
-    co_return;
+        std::get<std::shared_ptr<grid>>(ctx.input_raw("value")));
+    return true;
 }
-
-#ifdef LS_EDITOR
-void node_output_grid::draw_ui() {
-    char buf[128];
-    std::strncpy(buf, output_name.c_str(), sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
-    if (ImGui::InputText("Name", buf, sizeof(buf)))
-        output_name = buf;
-}
-#endif
-
-LS_REGISTER_NODE(node_output_grid);
 
 } // namespace ls
