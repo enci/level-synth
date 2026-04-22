@@ -273,3 +273,86 @@ TEST_CASE("eval cycle detection throws", "[eval]") {
     ls::eval_engine engine;
     CHECK_THROWS_AS(engine.evaluate(graph, 0), std::runtime_error);
 }
+
+// ---- generator ----------------------------------------------------------
+
+static ls::generator make_cave_generator() {
+    ls::generator gen;
+    ls::node_graph& graph = gen.graph();
+
+    auto create = std::make_unique<ls::node_create_grid>();
+    create->m_width = 32;
+    create->m_height = 32;
+    int create_id = graph.add_node(std::move(create));
+
+    auto density_in = std::make_unique<ls::node_input_number>();
+    density_in->m_value = 0.45;
+    density_in->set_name("density");
+    int density_id = graph.add_node(std::move(density_in));
+
+    auto noise = std::make_unique<ls::node_noise_grid>();
+    noise->density = 0.45;
+    int noise_id = graph.add_node(std::move(noise));
+
+    auto ca = std::make_unique<ls::node_cellular_automata>();
+    ca->m_iterations = 3;
+    int ca_id = graph.add_node(std::move(ca));
+
+    auto out = std::make_unique<ls::node_output_grid>();
+    out->set_name("level");
+    int out_id = graph.add_node(std::move(out));
+
+    graph.add_wire({create_id,  "grid",   noise_id,  "grid"    });
+    graph.add_wire({density_id, "value",  noise_id,  "density" });
+    graph.add_wire({noise_id,   "grid",   ca_id,     "input"   });
+    graph.add_wire({ca_id,      "output", out_id,    "value"   });
+
+    gen.rebuild_bindings();
+    return gen;
+}
+
+TEST_CASE("generator get_grid_output returns a valid grid", "[generator]") {
+    auto gen = make_cave_generator();
+    gen.set_seed(1);
+    gen.evaluate();
+
+    auto grid = gen.get_grid_output("level");
+    REQUIRE(grid != nullptr);
+    CHECK(grid->width() == 32);
+    CHECK(grid->height() == 32);
+}
+
+TEST_CASE("generator set_parameter changes output", "[generator]") {
+    auto gen1 = make_cave_generator();
+    gen1.set_seed(1);
+    gen1.set_parameter("density", 0.0); // all zeros -> CA keeps mostly zeros
+    gen1.evaluate();
+    auto g1 = gen1.get_grid_output("level");
+
+    auto gen2 = make_cave_generator();
+    gen2.set_seed(1);
+    gen2.set_parameter("density", 1.0); // all ones -> CA keeps mostly ones
+    gen2.evaluate();
+    auto g2 = gen2.get_grid_output("level");
+
+    // The two outputs should differ
+    bool any_different = false;
+    for (int y = 0; y < 32 && !any_different; ++y)
+        for (int x = 0; x < 32 && !any_different; ++x)
+            if (g1->get(x, y) != g2->get(x, y))
+                any_different = true;
+    CHECK(any_different);
+}
+
+TEST_CASE("generator throws on unknown parameter", "[generator]") {
+    auto gen = make_cave_generator();
+    CHECK_THROWS_AS(gen.set_parameter("nonexistent", 1.0), std::runtime_error);
+}
+
+TEST_CASE("generator throws on unknown output", "[generator]") {
+    auto gen = make_cave_generator();
+    gen.set_seed(0);
+    gen.evaluate();
+    CHECK_THROWS_AS(gen.get_grid_output("nonexistent"), std::runtime_error);
+}
+

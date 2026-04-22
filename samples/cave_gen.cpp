@@ -2,74 +2,70 @@
 //
 // Builds a small node graph that generates a random noise grid, refines it
 // with cellular automata, and prints the result as ASCII art.
+// Uses the generator API to expose named parameters and outputs.
 //
 // Graph:
-//   [InputNumber "iterations"] ------> [CellularAutomata] ----> [OutputGrid "level"]
-//              [CreateGrid] -> [NoiseGrid] ----------^
+//   [InputNumber "seed_density"] --> [NoiseGrid]
+//            [CreateGrid] --------^      |
+//                                   [CellularAutomata] --> [OutputGrid "level"]
 
 #include <level_synth/level_synth.hpp>
+#include <level_synth/node_graph.hpp>
 
 #include <iostream>
 
 int main() {
     ls::generator gen;
-    ls::eval_engine& engine = gen.engine();
+    ls::node_graph& graph = gen.graph();
 
+    // Blank 64x32 grid
+    auto create = std::make_unique<ls::node_create_grid>();
+    create->m_width  = 64;
+    create->m_height = 32;
+    int create_id = graph.add_node(std::move(create));
 
-    // Input: number of CA iterations
-    auto iterations_node = std::make_unique<ls::node_input_number>();
-    iterations_node->param_name = "iterations";
-    iterations_node->default_value = 4;
-    int iterations_id = engine.add_node(std::move(iterations_node));
+    // Expose noise density as a named parameter
+    auto density_in = std::make_unique<ls::node_input_number>();
+    density_in->m_value = 0.45;
+    density_in->set_name("density");
+    int density_id = graph.add_node(std::move(density_in));
 
-    // Grid dimensions — shared by create and noise
-    auto create_node = std::make_unique<ls::node_create_grid>();
-    create_node->default_width  = 48;
-    create_node->default_height = 24;
-    int create_id = engine.add_node(std::move(create_node));
+    // Random noise
+    auto noise = std::make_unique<ls::node_noise_grid>();
+    noise->density = 0.45;
+    int noise_id = graph.add_node(std::move(noise));
 
-    // Random noise grid — ~45% density
-    auto noise_node = std::make_unique<ls::node_noise_grid>();
-    noise_node->default_density = 0.45;
-    int noise_id = engine.add_node(std::move(noise_node));
+    // Cellular automata
+    auto ca = std::make_unique<ls::node_cellular_automata>();
+    ca->m_iterations = 5;
+    ca->m_birth      = 5;
+    ca->m_death      = 4;
+    int ca_id = graph.add_node(std::move(ca));
 
-    // Cellular automata: sculpts caves out of the noise
-    auto ca_node = std::make_unique<ls::node_cellular_automata>();
-    ca_node->default_birth = 5;
-    ca_node->default_death = 4;
-    int ca_id = engine.add_node(std::move(ca_node));
+    // Named output
+    auto out = std::make_unique<ls::node_output_grid>();
+    out->set_name("level");
+    int out_id = graph.add_node(std::move(out));
 
-    // Output: named "level" so we can retrieve it from the generator
-    auto out_node = std::make_unique<ls::node_output_grid>();
-    out_node->output_name = "level";
-    int out_id = engine.add_node(std::move(out_node));
+    graph.add_wire({create_id,  "grid",   noise_id, "grid"  });
+    graph.add_wire({noise_id,   "grid",   ca_id,    "input" });
+    graph.add_wire({ca_id,      "output", out_id,   "value" });
 
-    // -- Wire them up --
-    engine.add_wire({create_id,     "grid",  noise_id, "grid"  });
-    engine.add_wire({noise_id,      "grid",  ca_id,    "input" });
-    engine.add_wire({iterations_id, "value", ca_id, "iterations"});
-    engine.add_wire({ca_id, "output", out_id, "value"});
-
-    // Let the generator discover the input/output nodes
     gen.rebuild_bindings();
 
-    // -- Run --
     gen.set_seed(42);
-    gen.set_parameter("iterations", 6);
+    gen.set_parameter("density", 0.45); // override default
     gen.evaluate();
 
-    // -- Print the result --
     auto grid = gen.get_grid_output("level");
     if (!grid) {
-        std::cerr << "No output grid produced.\n";
+        std::cerr << "No output produced.\n";
         return 1;
     }
 
-    for (int y = 0; y < grid->height(); y++) {
-        for (int x = 0; x < grid->width(); x++) {
-            int v = grid->get("terrain", x, y);
-            std::cout << (v ? '#' : '.');
-        }
+    for (int y = 0; y < grid->height(); ++y) {
+        for (int x = 0; x < grid->width(); ++x)
+            std::cout << (grid->get(x, y) ? '#' : '.');
         std::cout << '\n';
     }
 

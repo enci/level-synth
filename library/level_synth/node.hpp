@@ -23,6 +23,7 @@ public:
     virtual bool evaluate(eval_context& ctx) = 0;
     int id() const { return m_id; }
     const std::string& name() const { return m_name; }
+    void set_name(std::string name) { m_name = std::move(name); }
 
 #ifdef LS_EDITOR
     virtual void edit() {}

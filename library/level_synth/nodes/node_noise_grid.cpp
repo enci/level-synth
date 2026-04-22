@@ -24,6 +24,7 @@ const node_descriptor& node_noise_grid::descriptor() const {
 
 bool node_noise_grid::evaluate(eval_context& ctx) {
     if (!ctx.has_input("grid")) return false;
+    if (ctx.has_input("density")) density = ctx.input_number("density");
 
     const grid& src = ctx.input_grid("grid");
     auto gr = std::make_shared<grid>(src);
