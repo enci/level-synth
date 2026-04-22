@@ -8,6 +8,7 @@
 namespace ls {
 
 class eval_context;
+class node_graph;
 
 struct node_descriptor {
     std::string name;
@@ -28,7 +29,8 @@ public:
 #endif
 
 private:
-    friend class eval_engine;
+    //friend class eval_engine;
+    friend class node_graph;
     int m_id = 0;
     std::string m_name;
 };

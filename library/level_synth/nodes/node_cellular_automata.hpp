@@ -9,14 +9,9 @@ public:
     const node_descriptor& descriptor() const override;
     bool evaluate(eval_context& ctx) override;
 
-#ifdef LS_EDITOR
-    void edit() override;
-#endif
-
-    double default_iterations = 5;
-    double default_birth = 5;
-    double default_death = 3;
-    std::string attribute_name = "terrain";
+    double m_iterations = 5;
+    double m_birth = 5;
+    double m_death = 3;
 };
 
 }

@@ -52,6 +52,7 @@ private:
 
     std::unordered_map<int, std::unique_ptr<node>> m_nodes;
     std::vector<wire> m_wires;
+    int m_next_id = 0;
 };
 
 }

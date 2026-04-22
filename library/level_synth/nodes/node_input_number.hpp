@@ -9,9 +9,8 @@ public:
     const node_descriptor& descriptor() const override;
     bool evaluate(eval_context& ctx) override;
 
-#ifdef LS_EDITOR
-    void edit() override;
-#endif
+// protected:
+    double m_value;
 };
 
 }

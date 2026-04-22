@@ -13,7 +13,7 @@ public:
     void edit() override;
 #endif
 
-protected:
+// protected:
     double m_width = 64;
     double m_height = 64;
     int m_fill_value = 0;

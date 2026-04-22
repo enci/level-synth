@@ -20,7 +20,6 @@
 #include <level_synth/nodes/node_output_grid.hpp>
 #include <level_synth/nodes/node_output_number.hpp>
 #include <level_synth/node_registry.hpp>
-#include <level_synth/layered_grid.hpp>
 #include <map>
 #include <set>
 #include <algorithm>

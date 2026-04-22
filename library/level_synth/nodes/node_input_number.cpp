@@ -20,6 +20,8 @@ const node_descriptor& node_input_number::descriptor() const {
 }
 
 bool node_input_number::evaluate(eval_context& ctx) {
+    ctx.set_output_number("value", m_value);
+    return true;
 }
 
 } // namespace ls
