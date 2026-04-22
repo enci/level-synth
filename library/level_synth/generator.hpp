@@ -15,6 +15,8 @@ class generator {
 public:
     generator();
     ~generator();
+    generator(generator&&) = default;
+    generator& operator=(generator&&) = default;
     void set_parameter(const std::string& name, double value);
     void set_seed(int seed);
     void evaluate();

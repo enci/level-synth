@@ -43,12 +43,14 @@ static int count_neighbors(const grid& grid, int x, int y) {
 }
 
 bool node_cellular_automata::evaluate(eval_context& ctx) {
-    const auto& input = ctx.input_grid("input");
+    if (ctx.has_input("iterations")) m_iterations = ctx.input_number("iterations");
+    if (ctx.has_input("birth"))      m_birth      = ctx.input_number("birth");
+    if (ctx.has_input("death"))      m_death      = ctx.input_number("death");
 
-    // Start grid
+    const auto& input = ctx.input_grid("input");
     auto output = std::make_shared<grid>(input);
 
-    for (int i = 0; i < m_iterations; i++) {
+    for (int i = 0; i < static_cast<int>(m_iterations); i++) {
 
         // Snapshot current state for neighbor reads
         grid prev(*output);

@@ -26,6 +26,7 @@ void generator::set_parameter(const std::string& name, double value) {
 
     auto* n = dynamic_cast<node_input_number*>(m_graph.find_node(it->second));
     if (!n) return;
+    n->m_value = value;
 }
 
 void generator::set_seed(int seed) {

@@ -5,6 +5,8 @@ namespace ls {
 int node_graph::add_node(std::unique_ptr<node> n) {
     int id = m_next_id++;
     n->m_id = id;
+    if (n->m_name.empty())
+        n->m_name = n->descriptor().name + " " + std::to_string(id);
     m_nodes[id] = std::move(n);
     return id;
 }
