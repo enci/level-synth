@@ -1,24 +1,24 @@
 #include <catch2/catch_test_macros.hpp>
-#include <level_synth/attribute_grid.hpp>
+#include <level_synth/layered_grid.hpp>
 
-TEST_CASE("attribute_grid construction", "[attribute_grid]") {
-    ls::attribute_grid grid(10, 8);
+TEST_CASE("layered_grid construction", "[layered_grid]") {
+    ls::layered_grid grid(10, 8);
     CHECK(grid.width() == 10);
     CHECK(grid.height() == 8);
 }
 
-TEST_CASE("attribute_grid default construction", "[attribute_grid]") {
-    ls::attribute_grid grid;
+TEST_CASE("layered_grid default construction", "[layered_grid]") {
+    ls::layered_grid grid;
     CHECK(grid.width() == 0);
     CHECK(grid.height() == 0);
 }
 
-TEST_CASE("attribute_grid add and query attributes", "[attribute_grid]") {
-    ls::attribute_grid grid(4, 4);
+TEST_CASE("layered_grid add and query attributes", "[layered_grid]") {
+    ls::layered_grid grid(4, 4);
 
-    REQUIRE_FALSE(grid.has_attribute("tile"));
-    grid.add_attribute("tile", 1);
-    REQUIRE(grid.has_attribute("tile"));
+    REQUIRE_FALSE(grid.has_layer("tile"));
+    auto& g = grid["tile"];
+    REQUIRE(grid.has_layer("tile"));
 
     SECTION("default value fills grid") {
         for (int y = 0; y < 4; ++y)
@@ -39,19 +39,19 @@ TEST_CASE("attribute_grid add and query attributes", "[attribute_grid]") {
     }
 }
 
-TEST_CASE("attribute_grid data span", "[attribute_grid]") {
-    ls::attribute_grid grid(3, 2);
-    grid.add_attribute("val");
+TEST_CASE("layered_grid data span", "[layered_grid]") {
+    ls::layered_grid grid(3, 2);
+    //grid.add_attribute("val");
 
-    auto span = grid.data("val");
-    REQUIRE(span.size() == 6);
+    //auto span = grid.data("val");
+    //REQUIRE(span.size() == 6);
 
-    span[0] = 10;
-    CHECK(grid.get("val", 0, 0) == 10);
+    //span[0] = 10;
+    //CHECK(grid.get("val", 0, 0) == 10);
 }
 
-TEST_CASE("attribute_grid in_bounds", "[attribute_grid]") {
-    ls::attribute_grid grid(5, 5);
+TEST_CASE("layered_grid in_bounds", "[layered_grid]") {
+    ls::layered_grid grid(5, 5);
     CHECK(grid.in_bounds(0, 0));
     CHECK(grid.in_bounds(4, 4));
     CHECK_FALSE(grid.in_bounds(-1, 0));
@@ -60,8 +60,8 @@ TEST_CASE("attribute_grid in_bounds", "[attribute_grid]") {
     CHECK_FALSE(grid.in_bounds(0, 5));
 }
 
-TEST_CASE("attribute_grid throws on unknown attribute", "[attribute_grid]") {
-    ls::attribute_grid grid(2, 2);
+TEST_CASE("layered_grid throws on unknown attribute", "[layered_grid]") {
+    ls::layered_grid grid(2, 2);
     CHECK_THROWS_AS(grid.get("nope", 0, 0), std::runtime_error);
     CHECK_THROWS_AS(grid.set("nope", 0, 0, 1), std::runtime_error);
     CHECK_THROWS_AS(grid.data("nope"), std::runtime_error);

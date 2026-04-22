@@ -22,7 +22,7 @@ const node_descriptor& node_output_grid::descriptor() const {
 eval_task node_output_grid::evaluate(eval_context& ctx) {
     if (!ctx.has_input("value")) co_return;
     ctx.set_output_grid("value",
-        std::get<std::shared_ptr<attribute_grid>>(ctx.input_raw("value")));
+        std::get<std::shared_ptr<layered_grid>>(ctx.input_raw("value")));
     co_return;
 }
 

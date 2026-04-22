@@ -8,8 +8,7 @@
 
 namespace ls {
 
-// --- Graph construction ---
-
+    /*
 int eval_engine::add_node(std::unique_ptr<node> n) {
     int id = m_next_id++;
     n->m_id = id;
@@ -251,5 +250,6 @@ std::optional<eval_step> eval_engine::current_step() const {
         return m_step_task->current_step();
     return std::nullopt;
 }
+*/
 
 }

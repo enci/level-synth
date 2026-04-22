@@ -14,15 +14,10 @@ struct node_descriptor;
 class node_registry {
 public:
     using factory_fn = std::function<std::unique_ptr<node>()>;
-
     void register_node(const std::string& type_name, factory_fn factory);
-
     std::unique_ptr<node> create(const std::string& type_name) const;
-
     std::vector<std::string> registered_types() const;
-
     const node_descriptor& descriptor(const std::string& type_name) const;
-
     static node_registry& instance();
 
 private:

@@ -1,7 +1,8 @@
 #include "node_create_grid.hpp"
 #include "../eval_context.hpp"
-#include "../attribute_grid.hpp"
+#include "../layered_grid.hpp"
 #include "../node_registry.hpp"
+#include "level_synth/layered_grid.hpp"
 #ifdef LS_EDITOR
 #include <imgui.h>
 #include <cstring>
@@ -22,28 +23,23 @@ const node_descriptor& node_create_grid::descriptor() const {
     return desc;
 }
 
-eval_task node_create_grid::evaluate(eval_context& ctx) {
-    int w = ctx.has_input("width")
-        ? static_cast<int>(ctx.input_number("width"))
-        : static_cast<int>(default_width);
+bool node_create_grid::evaluate(eval_context& ctx) {
+    // auto w = ctx.has_input("width") ? ctx.input_number("width") : m_width;
 
-    int h = ctx.has_input("height")
-        ? static_cast<int>(ctx.input_number("height"))
-        : static_cast<int>(default_height);
+    auto l_grid = std::make_shared<layered_grid>(m_width, m_height);
+    auto& grid =(*l_grid)[m_layer_name];
+    for (int y = 0; y < m_height; y++) {
+        for (int x = 0; x < m_width; x++) {
+            grid(x, y) = m_fill_value;
+        }
+    }
 
-    int fill = ctx.has_input("fill_value")
-        ? static_cast<int>(ctx.input_number("fill_value"))
-        : static_cast<int>(default_fill);
-
-    auto grid = std::make_shared<attribute_grid>(w, h);
-    grid->add_attribute(attribute_name, fill);
-
-    ctx.set_output_grid("grid", std::move(grid));
-    co_return;
+    ctx.set_output_grid("grid", std::move(l_grid));
 }
 
 #ifdef LS_EDITOR
-void node_create_grid::draw_ui() {
+void node_create_grid::edit() {
+    /*
     int w    = static_cast<int>(default_width);
     int h    = static_cast<int>(default_height);
     int fill = static_cast<int>(default_fill);
@@ -56,26 +52,9 @@ void node_create_grid::draw_ui() {
     buf[sizeof(buf) - 1] = '\0';
     if (ImGui::InputText("Attribute", buf, sizeof(buf)))
         attribute_name = buf;
+    */
 }
 
-bool node_create_grid::has_input_default(const std::string& pin_name) const {
-    return pin_name == "width" || pin_name == "height" || pin_name == "fill_value";
-}
-
-double node_create_grid::get_default(const std::string& pin_name) const {
-    if (pin_name == "width")      return default_width;
-    if (pin_name == "height")     return default_height;
-    if (pin_name == "fill_value") return default_fill;
-    return 0.0;
-}
-
-void node_create_grid::set_default(const std::string& pin_name, double value) {
-    if      (pin_name == "width")      default_width  = value;
-    else if (pin_name == "height")     default_height = value;
-    else if (pin_name == "fill_value") default_fill   = value;
-}
 #endif
-
-LS_REGISTER_NODE(node_create_grid);
 
 } // namespace ls

@@ -19,22 +19,6 @@ const node_descriptor& node_output_number::descriptor() const {
     return desc;
 }
 
-eval_task node_output_number::evaluate(eval_context& ctx) {
-    if (!ctx.has_input("value")) co_return;
-    ctx.set_output_number("value", ctx.input_number("value"));
-    co_return;
-}
-
-#ifdef LS_EDITOR
-void node_output_number::draw_ui() {
-    char buf[128];
-    std::strncpy(buf, output_name.c_str(), sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
-    if (ImGui::InputText("Name", buf, sizeof(buf)))
-        output_name = buf;
-}
-#endif
-
-LS_REGISTER_NODE(node_output_number);
+bool node_output_number::evaluate(eval_context& ctx) {}
 
 } // namespace ls
