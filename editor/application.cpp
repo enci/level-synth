@@ -77,6 +77,19 @@ application::application(const std::string& title, int width, int height)
     init_sdl();
     init_imgui();
     init_node_editor();
+
+
+    // Editor custom colors
+    m_colors[editor::Color_PinNumber]          = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
+    m_colors[editor::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
+    m_colors[editor::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
+    m_colors[editor::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
+    m_colors[editor::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
+    m_colors[editor::Color_ToolbarBg]           = ImVec4(0.95f, 0.95f, 0.96f, 0.92f);
+    m_colors[editor::Color_ToolbarBorder]       = ImVec4(0.70f, 0.70f, 0.72f, 0.60f);
+    m_colors[editor::Color_ToolbarButtonHovered]= ImVec4(0.80f, 0.80f, 0.82f, 0.60f);
+    m_colors[editor::Color_ToolbarButtonActive] = ImVec4(0.70f, 0.70f, 0.72f, 0.80f);
+
     // apply_theme();
 }
 
