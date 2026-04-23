@@ -2,6 +2,7 @@
 #include "../eval_context.hpp"
 #include "../grid.hpp"
 #include "../node_registry.hpp"
+#include "../node_visitor.hpp"
 #ifdef LS_EDITOR
 #include <imgui.h>
 #include <cstring>
@@ -73,6 +74,13 @@ bool node_cellular_automata::evaluate(eval_context& ctx) {
 
     ctx.set_output_grid("output", std::move(output));
     return true;
+}
+
+void node_cellular_automata::accept(node_visitor &v) {
+    node::accept(v);
+    v.visit("Iterations", m_iterations);
+    v.visit("Birth",      m_birth);
+    v.visit("Death",      m_death);
 }
 
 }

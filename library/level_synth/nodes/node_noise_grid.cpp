@@ -8,6 +8,8 @@
 #endif
 #include <random>
 
+#include "level_synth/node_visitor.hpp"
+
 namespace ls {
 
 const node_descriptor& node_noise_grid::descriptor() const {
@@ -24,7 +26,7 @@ const node_descriptor& node_noise_grid::descriptor() const {
 
 bool node_noise_grid::evaluate(eval_context& ctx) {
     if (!ctx.has_input("grid")) return false;
-    if (ctx.has_input("density")) density = ctx.input_number("density");
+    if (ctx.has_input("density")) m_density = ctx.input_number("density");
 
     const grid& src = ctx.input_grid("grid");
     auto gr = std::make_shared<grid>(src);
@@ -37,13 +39,18 @@ bool node_noise_grid::evaluate(eval_context& ctx) {
 
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
-            if (dist(rng) < density)
+            if (dist(rng) < m_density)
                 gr->set(x, y, 1);
         }
     }
 
     ctx.set_output_grid("grid", std::move(gr));
     return true;
+}
+
+void node_noise_grid::accept(node_visitor& v) {
+    node::accept(v);
+    v.visit("Density", m_density);
 }
 
 } // namespace ls

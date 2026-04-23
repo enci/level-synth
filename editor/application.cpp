@@ -1,9 +1,13 @@
 #include "application.hpp"
-#include "fluent_glyph.hpp"
+#include "phosphor_icons.hpp"
 #include <imgui_node_editor_node_builder.h>
 #include <imgui_node_editor_pin_icons.h>
 #include <stdexcept>
 #include <iostream>
+#include <fstream>
+
+#define NOMINMAX
+#include <portable-file-dialogs.h>
 
 #include "imgui_internal.h"
 #include "backends/imgui_impl_sdl3.h"
@@ -158,22 +162,17 @@ void application::init_imgui() {
     config.OversampleV = 8;
     io.Fonts->AddFontFromFileTTF("../resources/selawk.ttf", k_font_size, &config);
 
-    // Merge Fluent System Icons into the main font.
-    // OversampleH/V = 1: FreeType handles its own antialiasing, so oversampling
-    // only wastes atlas space.
-    // GlyphOffset.y: the Fluent font has ascender=upem and descent=0, meaning
-    // all icon geometry sits entirely above the baseline. Without an offset the
-    // icons hug the top of every button. Shifting down by ~font_size/4 centres
-    // them against Selawik's actual cap-height. This offset is per-glyph only
-    // and does not affect ImFont::Ascent/Descent or LineSpacing.
+    // Merge Phosphor Bold icons into the main font.
     {
         ImFontConfig icon_config;
         icon_config.MergeMode = true;
         icon_config.OversampleH = 1;
         icon_config.OversampleV = 1;
-        icon_config.GlyphOffset = ImVec2(0.0f, k_font_size / 4.0f);
-        io.Fonts->AddFontFromFileTTF("../resources/FluentSystemIcons-Regular.ttf",
-            k_font_size, &icon_config, xs::tools::get_fluent_glyph_ranges());
+        static const ImWchar phosphor_ranges[] = {
+            (ImWchar)phosphor::PH_RANGE_BEGIN, (ImWchar)phosphor::PH_RANGE_END, 0
+        };
+        io.Fonts->AddFontFromFileTTF("../resources/Phosphor-Bold.woff",
+            k_font_size, &icon_config, phosphor_ranges);
     }
 }
 
@@ -301,8 +300,61 @@ void application::render() {
     SDL_RenderPresent(m_renderer);
 }
 
+void application::save_graph_as() {
+    auto dialog = pfd::save_file(
+        "Save Graph",
+        m_current_file.empty() ? "graph.json" : m_current_file.string(),
+        { "Level Synth Graph", "*.json", "All Files", "*" }
+    );
+    std::filesystem::path path = dialog.result();
+    if (path.empty()) return;
+
+    std::string json = m_generator.graph().save();
+    std::filesystem::path tmp = path;
+    tmp += ".tmp";
+    {
+        std::ofstream f(tmp);
+        if (!f || !(f << json) || !f.flush()) {
+            std::filesystem::remove(tmp);
+            pfd::message("Save failed", "Could not write to file:\n" + tmp.string(), pfd::choice::ok, pfd::icon::error);
+            return;
+        }
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmp, path, ec);
+    if (ec) {
+        std::filesystem::remove(tmp);
+        pfd::message("Save failed", "Could not replace file:\n" + path.string(), pfd::choice::ok, pfd::icon::error);
+        return;
+    }
+    m_current_file = path;
+}
+
+void application::save_graph() {
+    if (m_current_file.empty()) {
+        save_graph_as();
+        return;
+    }
+    std::string json = m_generator.graph().save();
+    std::filesystem::path tmp = m_current_file;
+    tmp += ".tmp";
+    {
+        std::ofstream f(tmp);
+        if (!f || !(f << json) || !f.flush()) {
+            std::filesystem::remove(tmp);
+            pfd::message("Save failed", "Could not write to file:\n" + tmp.string(), pfd::choice::ok, pfd::icon::error);
+            return;
+        }
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmp, m_current_file, ec);
+    if (ec) {
+        std::filesystem::remove(tmp);
+        pfd::message("Save failed", "Could not replace file:\n" + m_current_file.string(), pfd::choice::ok, pfd::icon::error);
+    }
+}
+
 void application::cleanup() {
-    ax::NodeEditor::DestroyEditor(m_node_editor_context);
 
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
@@ -687,7 +739,7 @@ void application::toolbar() {
     // ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f * scale);
 
     // Hamburger menu button
-    if (ImGui::Button(ICON_FI_BARS, ImVec2(button_size, button_size)))
+    if (ImGui::Button(phosphor::PH_LIST, ImVec2(button_size, button_size)))
     {
         ImGui::OpenPopup("MainMenu");
     }
@@ -698,8 +750,10 @@ void application::toolbar() {
         {
             ImGui::MenuItem("New");
             ImGui::MenuItem("Open...");
-            ImGui::MenuItem("Save");
-            ImGui::MenuItem("Save As...");
+            if (ImGui::MenuItem("Save"))
+                save_graph();
+            if (ImGui::MenuItem("Save As..."))
+                save_graph_as();
             ImGui::Separator();
             if (ImGui::MenuItem("Quit"))
                 m_running = false;
@@ -731,7 +785,7 @@ void application::toolbar() {
     ImGui::SameLine();
 
     // Theme toggle
-    const char* theme_label = m_dark_theme ? ICON_FI_DARK_THEME : ICON_FI_BRIGHTNESS_HIGH;
+    const char* theme_label = m_dark_theme ? phosphor::PH_MOON : phosphor::PH_SUN;
     if (ImGui::Button(theme_label, ImVec2(button_size, button_size)))
     {
         m_dark_theme = !m_dark_theme;
@@ -752,7 +806,7 @@ void application::toolbar() {
     ed::SetCurrentEditor(m_node_editor_context);
     float inv_scale = ed::GetCurrentZoom();
 
-    if (ImGui::Button(ICON_FI_ZOOM_OUT, ImVec2(button_size, button_size)))
+    if (ImGui::Button(phosphor::PH_MAGNIFYING_GLASS_MINUS, ImVec2(button_size, button_size)))
         ed::SetCurrentZoom(inv_scale * 1.25f);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Zoom out");
@@ -769,7 +823,7 @@ void application::toolbar() {
 
     ImGui::SameLine();
 
-    if (ImGui::Button(ICON_FI_ZOOM_IN, ImVec2(button_size, button_size)))
+    if (ImGui::Button(phosphor::PH_MAGNIFYING_GLASS_PLUS, ImVec2(button_size, button_size)))
         ed::SetCurrentZoom(inv_scale * 0.8f);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Zoom in");
@@ -777,7 +831,7 @@ void application::toolbar() {
     ImGui::SameLine();
 
     // Fit to content
-    if (ImGui::Button(ICON_FI_ZOOM_FIT, ImVec2(button_size, button_size)))
+    if (ImGui::Button(phosphor::PH_FRAME_CORNERS, ImVec2(button_size, button_size)))
         ed::NavigateToContent();
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Fit to content");
@@ -799,7 +853,7 @@ void application::toolbar() {
         ImGui::SetTooltip("Global generation seed");
     ImGui::SameLine();
 
-    if (ImGui::Button(ICON_FI_PLAY, ImVec2(button_size, button_size))) {
+    if (ImGui::Button(phosphor::PH_PLAY, ImVec2(button_size, button_size))) {
         m_generator.set_seed(m_seed);
         m_generator.evaluate();
     }
@@ -809,7 +863,7 @@ void application::toolbar() {
     ImGui::SameLine();
 
     // ImGui demo window toggle
-    if (ImGui::Button(ICON_FI_WINDOW, ImVec2(button_size, button_size)))
+    if (ImGui::Button(phosphor::PH_APP_WINDOW, ImVec2(button_size, button_size)))
         m_show_demo_window = !m_show_demo_window;
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("ImGui demo");

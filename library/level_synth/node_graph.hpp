@@ -6,6 +6,7 @@
 
 #include "node.hpp"
 #include "pin.hpp"
+#include <nlohmann/json.hpp>
 
 namespace ls {
 
@@ -46,6 +47,15 @@ public:
 
     /// Get all the wires (used for the ui)
     const std::vector<wire>& wires() const;
+
+    /// Save as json
+    std::string save() const;
+
+    /// Load from json (existing graph will be cleared)
+    void load(const std::string& data);
+
+    /// Clear the reg
+    void clear();
 
 private:
     friend class eval_engine;
