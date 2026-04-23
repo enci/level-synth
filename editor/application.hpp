@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SDL3/SDL.h>
+#include <filesystem>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -44,6 +45,9 @@ private:
     void apply_theme();
     void draw_window_shadow(ImVec2 pos, ImVec2 size, float rounding = 10.0f);
 
+    void save_graph();
+    void save_graph_as();
+
     SDL_Window* m_window;
     SDL_Renderer* m_renderer;
     SDL_Event m_event;
@@ -61,6 +65,8 @@ private:
     int m_redraw_frames = 0;           // extra frames to render after activity
     static constexpr int k_cooldown_frames = 3;  // frames to keep rendering after last event
     static Uint32 s_redraw_event_type; // custom SDL event for cross-thread wake-up
+
+    std::filesystem::path m_current_file;
 
     ImVec4 m_colors[editor::Color_COUNT];
 

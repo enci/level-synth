@@ -1,4 +1,5 @@
 #include "node_graph.hpp"
+#include "json_visitor.hpp"
 
 namespace ls {
 
@@ -50,6 +51,50 @@ std::vector<int> node_graph::node_ids() const {
 
 const std::vector<wire>& node_graph::wires() const {
     return m_wires;
+}
+
+std::string node_graph::save() const {
+    nlohmann::json j;
+    j["version"] = 1;
+
+    j["nodes"] = nlohmann::json::array();
+    for (int id : node_ids()) {
+        const node* n = find_node(id);
+        if (!n) continue;
+
+        nlohmann::json state;
+        json_writer writer(state);
+        const_cast<node*>(n)->accept(writer);
+
+        j["nodes"].push_back({
+            {"id",    n->id()},
+            {"type",  std::string(n->descriptor().name)},
+            {"name",  n->name()},
+            {"state", std::move(state)},
+        });
+    }
+
+    j["wires"] = nlohmann::json::array();
+    for (const auto& w : m_wires) {
+        j["wires"].push_back({
+            {"from_node", w.from_node},
+            {"from_pin",  w.from_pin},
+            {"to_node",   w.to_node},
+            {"to_pin",    w.to_pin},
+        });
+    }
+
+    return j.dump(2);   // pretty-printed, 2-space indent
+}
+
+void node_graph::load(const std::string& json) {
+    // nlohmann::json j = nlohmann::json::parse(json);
+}
+
+void node_graph::clear() {
+    m_nodes.clear();
+    m_wires.clear();
+    m_next_id = 0;
 }
 
 }

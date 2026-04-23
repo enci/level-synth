@@ -9,6 +9,7 @@ namespace ls {
 
 class eval_context;
 class node_graph;
+class node_visitor;
 
 struct node_descriptor {
     std::string name;
@@ -22,6 +23,8 @@ public:
     virtual const node_descriptor& descriptor() const = 0;
     virtual bool evaluate(eval_context& ctx) = 0;
     int id() const { return m_id; }
+    virtual void accept(node_visitor& v) {}
+
     const std::string& name() const { return m_name; }
     void set_name(std::string name) { m_name = std::move(name); }
 

@@ -2,6 +2,7 @@
 #include "../eval_context.hpp"
 #include "../grid.hpp"
 #include "../node_registry.hpp"
+#include "../node_visitor.hpp"
 #ifdef LS_EDITOR
 #include <imgui.h>
 #include <cstring>
@@ -30,6 +31,13 @@ bool node_create_grid::evaluate(eval_context& ctx) {
     auto gr = std::make_shared<grid>(static_cast<int>(m_width), static_cast<int>(m_height), m_fill_value);
     ctx.set_output_grid("grid", std::move(gr));
     return true;
+}
+
+void node_create_grid::accept(node_visitor &v) {
+    node::accept(v);
+    v.visit("Width", m_width);
+    v.visit("Height", m_height);
+    v.visit("Fill Value", m_fill_value);
 }
 
 } // namespace ls

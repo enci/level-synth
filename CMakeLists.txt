@@ -58,6 +58,27 @@ set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
 set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(freetype)
 
+# Fetch portable-file-dialogs (header-only — bypass its outdated CMakeLists.txt)
+FetchContent_Declare(
+        portable_file_dialogs
+        GIT_REPOSITORY https://github.com/samhocevar/portable-file-dialogs.git
+        GIT_TAG main
+)
+FetchContent_GetProperties(portable_file_dialogs)
+if(NOT portable_file_dialogs_POPULATED)
+    FetchContent_Populate(portable_file_dialogs)
+endif()
+add_library(portable_file_dialogs INTERFACE)
+target_include_directories(portable_file_dialogs INTERFACE ${portable_file_dialogs_SOURCE_DIR})
+
+# Fetch nlohmann/json
+FetchContent_Declare(
+        nlohmann_json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG v3.11.3
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 # ---- Library target ----
 set(LIBRARY_SOURCES
         library/level_synth/eval_context.cpp
@@ -71,6 +92,8 @@ set(LIBRARY_SOURCES
         library/level_synth/nodes/node_output_number.cpp
         library/level_synth/nodes/node_noise_grid.cpp
         library/level_synth/node_graph.cpp
+        library/level_synth/json_visitor.cpp
+        library/level_synth/json_visitor.hpp
 )
 
 set(LIBRARY_HEADERS
@@ -89,6 +112,9 @@ set(LIBRARY_HEADERS
         library/level_synth/nodes/node_noise_grid.hpp
         library/level_synth/grid.hpp
         library/level_synth/node_graph.hpp
+        library/level_synth/node_visitor.hpp
+        library/level_synth/json_visitor.cpp
+        library/level_synth/json_visitor.hpp
 )
 
 add_library(level_synth_library STATIC
@@ -103,7 +129,7 @@ target_compile_definitions(level_synth_library PUBLIC
         LS_EDITOR
 )
 
-target_link_libraries(level_synth_library PUBLIC imgui_lib)
+target_link_libraries(level_synth_library PUBLIC imgui_lib nlohmann_json::nlohmann_json)
 
 # ---- ImGui editor-only sources (core is in imgui_lib) ----
 set(IMGUI_DIR ${imgui_SOURCE_DIR})
@@ -174,6 +200,7 @@ target_link_libraries(level_synth_editor PRIVATE
         $<LINK_LIBRARY:WHOLE_ARCHIVE,level_synth_library>
         SDL3::SDL3-static
         freetype
+        portable_file_dialogs
 )
 
 # ---- Tests ----
