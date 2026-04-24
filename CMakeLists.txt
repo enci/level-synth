@@ -165,10 +165,12 @@ set(EDITOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/editor)
 set(EDITOR_SOURCES
         ${EDITOR_DIR}/main.cpp
         ${EDITOR_DIR}/application.cpp
+        ${EDITOR_DIR}/editor.cpp
 )
 
 set(EDITOR_HEADERS
         ${EDITOR_DIR}/application.hpp
+        ${EDITOR_DIR}/editor.hpp
         ${EDITOR_DIR}/nodes/node_colors.hpp
         library/level_synth/node.hpp
         library/level_synth/eval_context.hpp
