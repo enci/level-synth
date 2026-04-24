@@ -50,7 +50,7 @@ bool node_noise_grid::evaluate(eval_context& ctx) {
 
 void node_noise_grid::accept(node_visitor& v) {
     node::accept(v);
-    v.visit("Density", m_density);
+    v.visit("density", m_density);
 }
 
 } // namespace ls

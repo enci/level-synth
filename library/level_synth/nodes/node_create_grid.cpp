@@ -35,9 +35,9 @@ bool node_create_grid::evaluate(eval_context& ctx) {
 
 void node_create_grid::accept(node_visitor &v) {
     node::accept(v);
-    v.visit("Width", m_width);
-    v.visit("Height", m_height);
-    v.visit("Fill Value", m_fill_value);
+    v.visit("width", m_width);
+    v.visit("height", m_height);
+    v.visit("fill_value", m_fill_value);
 }
 
 } // namespace ls

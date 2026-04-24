@@ -78,9 +78,9 @@ bool node_cellular_automata::evaluate(eval_context& ctx) {
 
 void node_cellular_automata::accept(node_visitor &v) {
     node::accept(v);
-    v.visit("Iterations", m_iterations);
-    v.visit("Birth",      m_birth);
-    v.visit("Death",      m_death);
+    v.visit("iterations", m_iterations);
+    v.visit("birth",      m_birth);
+    v.visit("death",      m_death);
 }
 
 }
