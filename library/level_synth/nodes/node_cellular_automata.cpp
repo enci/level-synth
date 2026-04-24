@@ -12,8 +12,6 @@ namespace ls {
 
 const node_descriptor& node_cellular_automata::descriptor() const {
     static node_descriptor desc = {
-        .name = "Cellular Automata",
-        .category = "Generation",
         .pins = {
             { "input",      pin_direction::input,  pin_type::grid,   true  },
             { "iterations", pin_direction::input,  pin_type::number, false },
@@ -82,5 +80,7 @@ void node_cellular_automata::accept(node_visitor &v) {
     v.visit("birth",      m_birth);
     v.visit("death",      m_death);
 }
+
+LS_REGISTER_NODE(node_cellular_automata, "Cellular Automata", "Generation");
 
 }

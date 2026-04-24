@@ -10,10 +10,10 @@ public:
     bool evaluate(eval_context& ctx) override;
     void accept(node_visitor &v) override;
 
-// protected:
+protected:
     double m_width = 64;
     double m_height = 64;
     int m_fill_value = 0;
 };
 
-} // namespace ls
+}

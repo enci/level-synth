@@ -10,7 +10,7 @@ public:
     bool evaluate(eval_context& ctx) override;
     void accept(node_visitor& v) override;
 
-// protected:
+protected:
     double m_density = 0.45;
 };
 

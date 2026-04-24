@@ -417,6 +417,7 @@ void application::node_editor() {
     auto& graph = m_generator.graph();
     ed::NodeBuilder builder;
     const ImVec2 icon_size(16, 16);
+    auto& reg =  ls::node_registry::instance();
 
     // Build set of connected input pins for this frame
     std::set<std::pair<int, std::string>> connected_inputs;
@@ -429,7 +430,9 @@ void application::node_editor() {
         if (!n) continue;
 
         const auto& desc = n->descriptor();
-        ImVec4 header_color = category_color(desc.category);
+        const auto* entry = reg.find(*n);
+        assert(entry && "Node registry entry not found for node");
+        ImVec4 header_color = category_color(entry->category);
 
         if (m_first_frame) {
             ed::SetNodePosition(make_node_id(node_id),
@@ -439,7 +442,7 @@ void application::node_editor() {
         builder.Begin(make_node_id(node_id));
         {
             builder.Header(header_color);
-                ImGui::TextUnformatted(desc.name.c_str());
+                ImGui::TextUnformatted(entry->display_name.c_str());
                 ImGui::Dummy(ImVec2(80, 0));
             builder.EndHeader();
 
@@ -488,7 +491,7 @@ void application::node_editor() {
             }
             builder.EndColumns();
 
-            n->edit();
+            // n->edit();
 
             // Grid preview — only on sink nodes (all pins are inputs, e.g. Output Grid)
             const bool is_sink = std::none_of(desc.pins.begin(), desc.pins.end(),
@@ -665,23 +668,22 @@ void application::node_editor() {
         ImGui::Separator();
 
         auto& reg = ls::node_registry::instance();
-        auto types = reg.registered_types();
+        auto types = reg.entries();
 
         // Group by category, sorted for stable ordering
-        std::map<std::string, std::vector<std::string>> by_category;
-        for (const auto& type_name : types)
-            by_category[reg.descriptor(type_name).category].push_back(type_name);
+        std::map<std::string, std::vector<const ls::node_registration*>> by_category;
+        for (const auto& type : types)
+            by_category[type.second.category].push_back(&type.second);
 
-        for (auto& [category, type_names] : by_category) {
-            std::sort(type_names.begin(), type_names.end(), [&](const auto& a, const auto& b) {
-                return reg.descriptor(a).name < reg.descriptor(b).name;
+        for (auto& [category, types] : by_category) {
+            std::sort(types.begin(), types.end(), [&](const auto& a, const auto& b) {
+                return a->display_name < b->display_name;
             });
 
             if (ImGui::BeginMenu(category.c_str())) {
-                for (const auto& type_name : type_names) {
-                    const auto& desc = reg.descriptor(type_name);
-                    if (ImGui::MenuItem(desc.name.c_str())) {
-                        int nid = graph.add_node(reg.create(type_name));
+                for (const auto& type : types) {;
+                    if (ImGui::MenuItem(type->display_name.c_str())) {
+                        int nid = graph.add_node(reg.create(type->type_name));
                         ed::SetNodePosition(make_node_id(nid), m_popup_canvas_pos);
                     }
                 }

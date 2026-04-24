@@ -3,17 +3,10 @@
 #include "../node_registry.hpp"
 #include "../node_visitor.hpp"
 
-#ifdef LS_EDITOR
-#include <imgui.h>
-#include <cstring>
-#endif
-
 namespace ls {
 
 const node_descriptor& node_input_number::descriptor() const {
     static node_descriptor desc = {
-        .name = "Input Number",
-        .category = "IO",
         .pins = {
             { "value", pin_direction::output, pin_type::number, true },
         }
@@ -31,4 +24,9 @@ void node_input_number::accept(node_visitor &v) {
     v.visit("value", m_value);
 }
 
-} // namespace ls
+LS_REGISTER_NODE(node_input_number, "Input Number", "IO");
+
+}
+
+
+

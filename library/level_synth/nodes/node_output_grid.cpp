@@ -1,17 +1,11 @@
 #include "node_output_grid.hpp"
 #include "../eval_context.hpp"
 #include "../node_registry.hpp"
-#ifdef LS_EDITOR
-#include <imgui.h>
-#include <cstring>
-#endif
 
 namespace ls {
 
 const node_descriptor& node_output_grid::descriptor() const {
     static node_descriptor desc = {
-        .name = "Output Grid",
-        .category = "IO",
         .pins = {
             { "value", pin_direction::input, pin_type::grid, true },
         }
@@ -26,4 +20,6 @@ bool node_output_grid::evaluate(eval_context& ctx) {
     return true;
 }
 
-} // namespace ls
+LS_REGISTER_NODE(node_output_grid, "Output Grid", "IO");
+
+}

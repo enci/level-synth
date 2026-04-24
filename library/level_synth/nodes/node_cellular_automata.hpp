@@ -10,6 +10,7 @@ public:
     bool evaluate(eval_context& ctx) override;
     void accept(node_visitor &v) override;
 
+protected:
     double m_iterations = 5;
     double m_birth = 5;
     double m_death = 3;

@@ -14,7 +14,6 @@ namespace ls {
 
 const node_descriptor& node_noise_grid::descriptor() const {
     static node_descriptor desc{
-        "Noise Grid", "Generation",
         {
             {"grid",    pin_direction::input,  pin_type::grid,   true},
             {"density", pin_direction::input,  pin_type::number, false},
@@ -53,4 +52,6 @@ void node_noise_grid::accept(node_visitor& v) {
     v.visit("density", m_density);
 }
 
-} // namespace ls
+LS_REGISTER_NODE(node_noise_grid, "Noise Grid", "Generation");
+
+}
