@@ -171,6 +171,7 @@ set(EDITOR_SOURCES
 set(EDITOR_HEADERS
         ${EDITOR_DIR}/application.hpp
         ${EDITOR_DIR}/editor.hpp
+        ${EDITOR_DIR}/imgui_visitor.hpp
         ${EDITOR_DIR}/nodes/node_colors.hpp
         library/level_synth/node.hpp
         library/level_synth/eval_context.hpp

@@ -1,4 +1,5 @@
 #include "editor.hpp"
+#include "imgui_visitor.hpp"
 #include "phosphor_icons.hpp"
 #include <imgui_node_editor_node_builder.h>
 #include <imgui_node_editor_pin_icons.h>
@@ -82,6 +83,7 @@ void editor::draw() {
     ImGui::PopStyleVar();
 
     draw_toolbar();
+    draw_details_panel();
 
     if (m_show_demo_window)
         ImGui::ShowDemoWindow(&m_show_demo_window);
@@ -850,6 +852,55 @@ void editor::set_dark_theme() {
     edStyle.Colors[StyleColor_FlowMarker]          = ImColor(255, 128, 64, 255);
     edStyle.Colors[StyleColor_GroupBg]             = ImColor(0, 0, 0, 120);
     edStyle.Colors[StyleColor_GroupBorder]         = ImColor(255, 255, 255, 24);
+}
+
+void editor::draw_details_panel() {
+    ed::SetCurrentEditor(m_node_editor_context);
+    int total = ed::GetSelectedObjectCount();
+    std::vector<ed::NodeId> selected(total);
+    int node_count = ed::GetSelectedNodes(selected.data(), total);
+    ed::SetCurrentEditor(nullptr);
+
+    const float panel_width = 220.0f;
+    const float margin = 12.0f;
+    ImVec2 panel_pos(ImGui::GetIO().DisplaySize.x - panel_width - margin, margin);
+
+    ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
+    ImGui::SetNextWindowSizeConstraints(
+        ImVec2(panel_width, 0.0f),
+        ImVec2(panel_width, FLT_MAX));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::Begin("##details", nullptr,
+        ImGuiWindowFlags_NoTitleBar  |
+        ImGuiWindowFlags_NoMove      |
+        ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_AlwaysAutoResize);
+    ImGui::PopStyleVar();
+
+    ImGui::TextUnformatted("Details");
+    ImGui::Separator();
+
+    if (node_count == 1) {
+        int nid = static_cast<int>(selected[0].Get() & ~k_node_tag);
+        auto* n = m_generator.graph().find_node(nid);
+        if (n) {
+            const auto* entry = ls::node_registry::instance().find(*n);
+            if (entry)
+                ImGui::TextUnformatted(entry->display_name.c_str());
+            ImGui::Separator();
+
+            imgui_visitor vis;
+            n->accept(vis);
+            if (vis.changed)
+                m_generator.evaluate();
+        }
+    } else if (node_count == 0) {
+        ImGui::TextDisabled("No node selected");
+    } else {
+        ImGui::TextDisabled("%d nodes selected", node_count);
+    }
+
+    ImGui::End();
 }
 
 void editor::draw_window_shadow(ImVec2 pos, ImVec2 size, float rounding) {
