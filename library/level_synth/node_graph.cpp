@@ -1,13 +1,18 @@
 #include "node_graph.hpp"
 #include "json_visitor.hpp"
+#include "node_registry.hpp"
 
 namespace ls {
 
 int node_graph::add_node(std::unique_ptr<node> n) {
+    auto& reg = ls::node_registry::instance();
     int id = m_next_id++;
     n->m_id = id;
-    if (n->m_name.empty())
-        n->m_name = n->descriptor().name + " " + std::to_string(id);
+    if (n->m_name.empty()) {
+        const auto* entry =  reg.find(*n);
+        if (entry)
+            n->m_name = entry->display_name + " " + std::to_string(id);
+    }
     m_nodes[id] = std::move(n);
     return id;
 }
@@ -36,7 +41,7 @@ node* node_graph::find_node(int node_id) {
     return it != m_nodes.end() ? it->second.get() : nullptr;
 }
 
-    const node* node_graph::find_node(int node_id) const {
+const node* node_graph::find_node(int node_id) const {
     auto it = m_nodes.find(node_id);
     return it != m_nodes.end() ? it->second.get() : nullptr;
 }
@@ -54,6 +59,8 @@ const std::vector<wire>& node_graph::wires() const {
 }
 
 std::string node_graph::save() const {
+    auto& reg = ls::node_registry::instance();
+
     nlohmann::json j;
     j["type"] = "level_synth_graph";
     j["version"] = 1.0;
@@ -66,10 +73,12 @@ std::string node_graph::save() const {
         nlohmann::json state;
         json_writer writer(state);
         const_cast<node*>(n)->accept(writer);
+        auto entry = reg.find(*n);
+        assert(entry && "Node not registered");
 
         j["nodes"].push_back({
             {"id",    n->id()},
-            {"type",  std::string(n->descriptor().name)},
+            {"type",  std::string(entry->type_name)},
             {"name",  n->name()},
             {"state", std::move(state)},
         });

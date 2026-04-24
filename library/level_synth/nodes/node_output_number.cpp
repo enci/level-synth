@@ -10,8 +10,6 @@ namespace ls {
 
 const node_descriptor& node_output_number::descriptor() const {
     static node_descriptor desc = {
-        .name = "Output Number",
-        .category = "IO",
         .pins = {
             { "value", pin_direction::input, pin_type::number, true },
         }
@@ -24,4 +22,6 @@ bool node_output_number::evaluate(eval_context& ctx) {
     return true;
 }
 
-} // namespace ls
+LS_REGISTER_NODE(node_output_number, "Output Number", "IO");
+
+}

@@ -12,7 +12,6 @@ namespace ls {
 
 const node_descriptor& node_create_grid::descriptor() const {
     static node_descriptor desc{
-        "Create Grid", "Generation",
         {
             {"width",      pin_direction::input,  pin_type::number, true},
             {"height",     pin_direction::input,  pin_type::number, true},
@@ -39,5 +38,7 @@ void node_create_grid::accept(node_visitor &v) {
     v.visit("height", m_height);
     v.visit("fill_value", m_fill_value);
 }
+    
+LS_REGISTER_NODE(node_create_grid, "Create Grid", "Generation");
 
-} // namespace ls
+}

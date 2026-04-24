@@ -11,11 +11,7 @@ class eval_context;
 class node_graph;
 class node_visitor;
 
-struct node_descriptor {
-    std::string name;
-    std::string category;
-    std::vector<pin_descriptor> pins;
-};
+struct node_descriptor { std::vector<pin_descriptor> pins; };
 
 class node {
 public:
@@ -28,11 +24,7 @@ public:
     const std::string& name() const { return m_name; }
     void set_name(std::string name) { m_name = std::move(name); }
 
-#ifdef LS_EDITOR
-    virtual void edit() {}
-#endif
-
-private:
+protected:
     //friend class eval_engine;
     friend class node_graph;
     int m_id = 0;
