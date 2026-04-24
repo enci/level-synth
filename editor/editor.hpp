@@ -21,6 +21,7 @@ public:
 private:
     void draw_node_editor();
     void draw_toolbar();
+    void draw_details_panel();
 
     void set_light_theme();
     void set_dark_theme();
