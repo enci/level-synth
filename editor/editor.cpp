@@ -70,6 +70,27 @@ void editor::init() {
 }
 
 void editor::draw() {
+    // Undo / Redo keyboard shortcuts (skip when a text field has focus)
+    if (!ImGui::GetIO().WantTextInput) {
+        auto& graph = m_generator.graph();
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Shortcut | ImGuiMod_Shift | ImGuiKey_Z) ||
+            ImGui::IsKeyChordPressed(ImGuiMod_Shortcut | ImGuiKey_Y)) {
+            if (m_history.can_redo()) {
+                m_history.redo(graph);
+                m_positioned_nodes.clear();
+                rebuild_links_from_graph();
+                m_generator.evaluate();
+            }
+        } else if (ImGui::IsKeyChordPressed(ImGuiMod_Shortcut | ImGuiKey_Z)) {
+            if (m_history.can_undo()) {
+                m_history.undo(graph);
+                m_positioned_nodes.clear();
+                rebuild_links_from_graph();
+                m_generator.evaluate();
+            }
+        }
+    }
+
     ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_Always);
@@ -87,6 +108,8 @@ void editor::draw() {
 
     if (m_show_demo_window)
         ImGui::ShowDemoWindow(&m_show_demo_window);
+
+    draw_history_panel();
 }
 
 ed::NodeId editor::make_node_id(int node_id) {
@@ -137,6 +160,43 @@ void editor::draw_node_editor() {
 
     auto& eng = m_generator.engine();
     auto& graph = m_generator.graph();
+    // Sync canvas positions back to node data (keeps snapshots accurate).
+    for (int nid : m_positioned_nodes) {
+        if (auto* n = graph.find_node(nid)) {
+            auto p = ed::GetNodePosition(make_node_id(nid));
+            n->set_position({ p.x, p.y });
+        }
+    }
+
+    // Node drag detection: on mouse press capture a positions-only snapshot;
+    // on release push a history entry only if positions actually changed.
+    // Using a positions-only snapshot avoids false positives from property edits
+    // that happen to overlap with a mouse press/release in the canvas.
+    auto capture_positions = [&]() -> std::string {
+        nlohmann::json j = nlohmann::json::array();
+        for (int nid : graph.node_ids()) {
+            if (const auto* n = graph.find_node(nid)) {
+                auto p = n->position();
+                j.push_back({ {"id", nid}, {"x", p.x}, {"y", p.y} });
+            }
+        }
+        return j.dump();
+    };
+
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        m_drag_before_json      = capture_positions();
+        m_drag_before_full_json = graph.save();
+    }
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !m_drag_before_json.empty()) {
+        std::string after_pos = capture_positions();
+        if (after_pos != m_drag_before_json) {
+            std::string after_full = graph.save();
+            m_history.push({ "Move Nodes", m_drag_before_full_json, after_full });
+        }
+        m_drag_before_json.clear();
+        m_drag_before_full_json.clear();
+    }
+
     ed::NodeBuilder builder;
     const ImVec2 icon_size(16, 16);
     auto& reg = ls::node_registry::instance();
@@ -156,13 +216,13 @@ void editor::draw_node_editor() {
         assert(entry && "Node registry entry not found for node");
         ImVec4 header_color = category_color(entry->category);
 
-        auto pit = m_pending_node_positions.find(node_id);
-        if (pit != m_pending_node_positions.end()) {
-            ed::SetNodePosition(make_node_id(node_id), pit->second);
-            m_pending_node_positions.erase(pit);
-        } else if (m_first_frame) {
-            ed::SetNodePosition(make_node_id(node_id),
-                ImVec2(10.0f + node_id * 300.0f, 10.0f));
+        if (m_positioned_nodes.count(node_id) == 0) {
+            auto p = n->position();
+            ImVec2 canvas_pos = (p.x != 0.0f || p.y != 0.0f)
+                ? ImVec2(p.x, p.y)
+                : ImVec2(10.0f + node_id * 300.0f, 10.0f); // default spread
+            ed::SetNodePosition(make_node_id(node_id), canvas_pos);
+            m_positioned_nodes.insert(node_id);
         }
 
         builder.Begin(make_node_id(node_id));
@@ -322,10 +382,10 @@ void editor::draw_node_editor() {
 
                 if (can_connect) {
                     if (ed::AcceptNewItem()) {
-                        ls::wire w{ src_node, src_pin, dst_node, dst_pin };
-                        graph.add_wire(w);
-                        int link_id = m_next_link_id++;
-                        m_link_to_wire[link_id] = { src_node, src_pin, dst_node, dst_pin };
+                        begin_edit("Add Wire");
+                        graph.add_wire({ src_node, src_pin, dst_node, dst_pin });
+                        commit_edit();
+                        rebuild_links_from_graph();
                     }
                 } else {
                     ed::RejectNewItem(ImVec4(1, 0, 0, 1), 2.0f);
@@ -336,6 +396,9 @@ void editor::draw_node_editor() {
     ed::EndCreate();
 
     // --- Handle deletions ---
+    // rebuild_links_from_graph() is deferred until after ed::EndDelete() so that
+    // link IDs reported by the editor remain valid throughout the loop.
+    bool any_deleted = false;
     if (ed::BeginDelete()) {
         ed::LinkId deleted_link_id;
         while (ed::QueryDeletedLink(&deleted_link_id)) {
@@ -344,9 +407,10 @@ void editor::draw_node_editor() {
                 auto it = m_link_to_wire.find(lid);
                 if (it != m_link_to_wire.end()) {
                     const auto& wv = it->second;
-                    graph.remove_wire(wv.from_node, wv.from_pin,
-                                      wv.to_node, wv.to_pin);
-                    m_link_to_wire.erase(it);
+                    begin_edit("Remove Wire");
+                    graph.remove_wire(wv.from_node, wv.from_pin, wv.to_node, wv.to_pin);
+                    commit_edit();
+                    any_deleted = true;
                 }
             }
         }
@@ -355,15 +419,16 @@ void editor::draw_node_editor() {
         while (ed::QueryDeletedNode(&deleted_node_id)) {
             if (ed::AcceptDeletedItem()) {
                 int nid = static_cast<int>(deleted_node_id.Get() & ~k_node_tag);
-                std::erase_if(m_link_to_wire, [&](const auto& pair) {
-                    const auto& wv = pair.second;
-                    return wv.from_node == nid || wv.to_node == nid;
-                });
+                begin_edit("Remove Node");
                 graph.remove_node(nid);
+                commit_edit();
+                any_deleted = true;
             }
         }
     }
     ed::EndDelete();
+    if (any_deleted)
+        rebuild_links_from_graph();
 
     // --- Right-click context menu for adding nodes ---
     // Detect right-click before Suspend so we have the canvas-space position,
@@ -394,8 +459,12 @@ void editor::draw_node_editor() {
             if (ImGui::BeginMenu(category.c_str())) {
                 for (const auto& type : cat_types) {
                     if (ImGui::MenuItem(type->display_name.c_str())) {
-                        int nid = graph.add_node(reg.create(type->type_name));
-                        ed::SetNodePosition(make_node_id(nid), m_popup_canvas_pos);
+                        begin_edit("Add " + type->display_name);
+                        auto node = reg.create(type->type_name);
+                        node->set_position({ m_popup_canvas_pos.x, m_popup_canvas_pos.y });
+                        graph.add_node(std::move(node));
+                        commit_edit();
+                        rebuild_links_from_graph();
                     }
                 }
                 ImGui::EndMenu();
@@ -408,7 +477,6 @@ void editor::draw_node_editor() {
 
     ed::End();
     ed::SetCurrentEditor(nullptr);
-    m_first_frame = false;
 }
 
 void editor::draw_toolbar() {
@@ -454,8 +522,19 @@ void editor::draw_toolbar() {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Edit")) {
-            ImGui::MenuItem("Undo");
-            ImGui::MenuItem("Redo");
+            auto& graph = m_generator.graph();
+            if (ImGui::MenuItem("Undo", "Cmd+Z", false, m_history.can_undo())) {
+                m_history.undo(graph);
+                m_positioned_nodes.clear();
+                rebuild_links_from_graph();
+                m_generator.evaluate();
+            }
+            if (ImGui::MenuItem("Redo", "Cmd+Shift+Z", false, m_history.can_redo())) {
+                m_history.redo(graph);
+                m_positioned_nodes.clear();
+                rebuild_links_from_graph();
+                m_generator.evaluate();
+            }
             ImGui::Separator();
             ImGui::MenuItem("Cut");
             ImGui::MenuItem("Copy");
@@ -463,6 +542,8 @@ void editor::draw_toolbar() {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Help")) {
+            if (ImGui::MenuItem("History", nullptr, m_show_history_panel))
+                m_show_history_panel = !m_show_history_panel;
             if (ImGui::MenuItem("ImGui Demo", nullptr, m_show_demo_window))
                 m_show_demo_window = !m_show_demo_window;
             ImGui::Separator();
@@ -608,8 +689,10 @@ void editor::save_graph_as() {
     std::filesystem::path path = dialog.result();
     if (path.empty()) return;
 
-    if (write_file_atomic(path, build_save_json()))
+    if (write_file_atomic(path, build_save_json())) {
         m_current_file = path;
+        m_history.mark_saved();
+    }
 }
 
 void editor::save_graph() {
@@ -617,16 +700,17 @@ void editor::save_graph() {
         save_graph_as();
         return;
     }
-    write_file_atomic(m_current_file, build_save_json());
+    if (write_file_atomic(m_current_file, build_save_json()))
+        m_history.mark_saved();
 }
 
 void editor::new_graph() {
     m_generator.graph().clear();
+    m_history.clear();
     m_link_to_wire.clear();
-    m_pending_node_positions.clear();
+    m_positioned_nodes.clear();
     m_next_link_id = 1;
     m_current_file.clear();
-    m_first_frame = true;
 }
 
 void editor::load_graph() {
@@ -654,30 +738,9 @@ void editor::load_graph() {
     try {
         m_generator.graph().load(data);
 
-        // Rebuild the editor link map from the newly loaded wires
-        m_link_to_wire.clear();
-        m_next_link_id = 1;
-        for (const auto& w : m_generator.graph().wires())
-            m_link_to_wire[m_next_link_id++] = { w.from_node, w.from_pin, w.to_node, w.to_pin };
-
-        // Positions are stored on each node; queue them for the next draw frame.
-        // If none are non-zero (old file without position data) fall back to
-        // the first-frame auto-layout instead.
-        m_pending_node_positions.clear();
-        bool has_positions = false;
-        for (int nid : m_generator.graph().node_ids()) {
-            if (const auto* n = m_generator.graph().find_node(nid)) {
-                auto p = n->position();
-                m_pending_node_positions[nid] = ImVec2(p.x, p.y);
-                if (p.x != 0.0f || p.y != 0.0f) has_positions = true;
-            }
-        }
-        if (!has_positions) {
-            m_pending_node_positions.clear();
-            m_first_frame = true;
-        } else {
-            m_first_frame = false;
-        }
+        m_history.clear();
+        m_positioned_nodes.clear();
+        rebuild_links_from_graph();
 
         m_current_file = path;
         m_generator.evaluate();
@@ -686,6 +749,74 @@ void editor::load_graph() {
                      std::string("Could not parse file:\n") + e.what(),
                      pfd::choice::ok, pfd::icon::error);
     }
+}
+
+void editor::begin_edit(std::string description) {
+    m_edit_description = std::move(description);
+    m_edit_before_json = m_generator.graph().save();
+}
+
+void editor::commit_edit() {
+    std::string after = m_generator.graph().save();
+    m_history.push({ m_edit_description, m_edit_before_json, after });
+    m_drag_before_json.clear();
+    m_drag_before_full_json.clear();
+    m_generator.evaluate();
+}
+
+void editor::draw_history_panel() {
+    if (!m_show_history_panel) return;
+
+    ImGui::SetNextWindowSize(ImVec2(280, 360), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("History", &m_show_history_panel)) {
+        ImGui::End();
+        return;
+    }
+
+    const int  n     = m_history.size();
+    const int  cur   = m_history.pos();
+    const int  saved = m_history.saved_pos();
+
+    // "Initial state" row
+    if (cur == 0)
+        ImGui::TextColored(ImVec4(1, 0.85f, 0, 1), ">> (initial state)");
+    else
+        ImGui::TextDisabled("   (initial state)");
+
+    for (int i = 0; i < n; ++i) {
+        const auto& e       = m_history.entry(i);
+        const bool is_cur   = (i == cur - 1);
+        const bool is_redo  = (i >= cur);
+        const bool is_saved = (i == saved - 1);
+
+        const char* saved_marker = is_saved ? " [saved]" : "";
+
+        if (is_redo)
+            ImGui::TextDisabled("   %s%s", e.description.c_str(), saved_marker);
+        else if (is_cur)
+            ImGui::TextColored(ImVec4(1, 0.85f, 0, 1), ">> %s%s",
+                               e.description.c_str(), saved_marker);
+        else
+            ImGui::Text("   %s%s", e.description.c_str(), saved_marker);
+    }
+
+    // Auto-scroll to keep current entry visible
+    if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+        ImGui::SetScrollHereY(1.0f);
+
+    ImGui::End();
+}
+
+void editor::rebuild_links_from_graph() {
+    m_link_to_wire.clear();
+    m_next_link_id = 1;
+    for (const auto& w : m_generator.graph().wires())
+        m_link_to_wire[m_next_link_id++] = { w.from_node, w.from_pin, w.to_node, w.to_pin };
+
+    // Prune positioned set so removed nodes get re-placed if restored later
+    std::erase_if(m_positioned_nodes, [&](int id) {
+        return !m_generator.graph().find_node(id);
+    });
 }
 
 void editor::set_node_editor_style() {
@@ -971,6 +1102,16 @@ void editor::draw_details_panel() {
 
             imgui_visitor vis;
             n->accept(vis);
+
+            // Capture before-state when a property widget is first activated
+            // (fires on the same frame as the initial mouse press, before any value change).
+            if (vis.activated)
+                begin_edit("Edit Property");
+
+            // Push history when a drag widget is released after being modified.
+            if (vis.deactivated_after_edit)
+                commit_edit();
+
             if (vis.changed)
                 m_generator.evaluate();
         }
