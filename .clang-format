@@ -11,8 +11,8 @@ UseTab: Never
 NamespaceIndentation: None
 IndentCaseLabels: true
 
-# Brace style: Allman (braces on their own line) — matches existing code
-BreakBeforeBraces: Allman
+# Brace style: Attach (K&R — brace on same line)
+BreakBeforeBraces: Attach
 
 # Line length
 ColumnLimit: 120
@@ -57,7 +57,7 @@ AllowShortLoopsOnASingleLine: false
 
 # Constructor initializer lists
 BreakConstructorInitializers: BeforeColon
-PackConstructorInitializers: NextLine
+PackConstructorInitializers: Never
 ConstructorInitializerIndentWidth: 4
 
 # Template declarations

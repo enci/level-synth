@@ -2,7 +2,7 @@
 
 #include <imgui.h>
 
-namespace editor {
+namespace editor_colors {
 
 enum Color_ {
     // Pin type colors (determines wire color)
@@ -38,4 +38,4 @@ inline const char* GetColorName(Color_ idx) {
     }
 }
 
-}
+} // namespace editor_colors
