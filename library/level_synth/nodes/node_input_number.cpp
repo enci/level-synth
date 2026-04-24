@@ -28,7 +28,7 @@ bool node_input_number::evaluate(eval_context& ctx) {
 
 void node_input_number::accept(node_visitor &v) {
     node::accept(v);
-    v.visit("Value", m_value);
+    v.visit("value", m_value);
 }
 
 } // namespace ls

@@ -55,7 +55,8 @@ const std::vector<wire>& node_graph::wires() const {
 
 std::string node_graph::save() const {
     nlohmann::json j;
-    j["version"] = 1;
+    j["type"] = "level_synth_graph";
+    j["version"] = 1.0;
 
     j["nodes"] = nlohmann::json::array();
     for (int id : node_ids()) {

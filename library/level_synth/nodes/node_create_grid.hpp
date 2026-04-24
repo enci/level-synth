@@ -14,7 +14,6 @@ public:
     double m_width = 64;
     double m_height = 64;
     int m_fill_value = 0;
-    std::string m_layer_name = "values";
 };
 
 } // namespace ls
