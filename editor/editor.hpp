@@ -3,11 +3,13 @@
 #include <imgui.h>
 #include <imgui_node_editor.h>
 #include "nodes/node_colors.hpp"
+#include "command_history.hpp"
 #include <level_synth/generator.hpp>
 #include <level_synth/node.hpp>
 #include <level_synth/pin.hpp>
 #include <filesystem>
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 
 class editor {
@@ -34,10 +36,19 @@ private:
     void save_graph();
     void save_graph_as();
     std::string build_save_json();
+    void rebuild_links_from_graph();
+
+    // Snapshot-based undo/redo: call begin_edit before mutating the graph,
+    // commit_edit after. Any change — structural, property, custom node UI —
+    // is covered without needing a dedicated command class.
+    void begin_edit(std::string description);
+    void commit_edit();
+
+    void draw_history_panel();
 
     ax::NodeEditor::EditorContext* m_node_editor_context = nullptr;
     ls::generator m_generator;
-    bool m_first_frame = true;
+    command_history m_history;
 
     struct wire_visual {
         int from_node;
@@ -48,11 +59,23 @@ private:
     int m_next_link_id = 1;
     std::unordered_map<int, wire_visual> m_link_to_wire;
     ImVec2 m_popup_canvas_pos = {};
-    std::unordered_map<int, ImVec2> m_pending_node_positions;
+    // Nodes that have been placed on the canvas at least once.
+    // Any node not in this set gets its initial position applied on first render.
+    std::unordered_set<int> m_positioned_nodes;
+
+    // Pending edit state for begin_edit / commit_edit
+    std::string m_edit_description;
+    std::string m_edit_before_json;
+    // Before-state captured on mouse press for node drag detection.
+    // m_drag_before_json holds positions-only JSON for change detection.
+    // m_drag_before_full_json holds the full graph snapshot for the undo before-state.
+    std::string m_drag_before_json;
+    std::string m_drag_before_full_json;
 
     ImVec4 m_colors[editor_colors::Color_COUNT];
     bool m_dark_theme = true;
-    bool m_show_demo_window = false;
+    bool m_show_demo_window   = false;
+    bool m_show_history_panel = true;
     int m_seed = 42;
     std::filesystem::path m_current_file;
 

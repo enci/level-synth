@@ -54,7 +54,7 @@ public:
     /// Load from json (existing graph will be cleared)
     void load(const std::string& data);
 
-    /// Clear the reg
+    /// Clear the graph
     void clear();
 
 private:

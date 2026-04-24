@@ -9,7 +9,7 @@ int node_graph::add_node(std::unique_ptr<node> n) {
     int id = m_next_id++;
     n->m_id = id;
     if (n->m_name.empty()) {
-        const auto* entry =  reg.find(*n);
+        const auto* entry = reg.find(*n);
         if (entry)
             n->m_name = entry->display_name + " " + std::to_string(id);
     }
@@ -19,8 +19,6 @@ int node_graph::add_node(std::unique_ptr<node> n) {
 
 void node_graph::remove_node(int node_id) {
     m_nodes.erase(node_id);
-
-    // Remove any wires connected to this node
     std::erase_if(m_wires, [node_id](const wire& w) {
         return w.from_node == node_id || w.to_node == node_id;
     });
@@ -92,7 +90,7 @@ std::string node_graph::save() const {
         });
     }
 
-    return j.dump(2);   // pretty-printed, 2-space indent
+    return j.dump(2);
 }
 
 void node_graph::load(const std::string& data) {
@@ -109,11 +107,11 @@ void node_graph::load(const std::string& data) {
         auto node_ptr = reg.create(type);
         if (!node_ptr) continue;
 
-        node_ptr->m_id = saved_id;
-
         json_reader reader(jn);
         node_ptr->accept(reader);
 
+        // Restore the original id (accept() sets name and position but not id)
+        node_ptr->m_id = saved_id;
         m_nodes[saved_id] = std::move(node_ptr);
         m_next_id = std::max(m_next_id, saved_id + 1);
     }
@@ -135,4 +133,3 @@ void node_graph::clear() {
 }
 
 }
-
