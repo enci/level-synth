@@ -12,12 +12,16 @@ void json_writer::visit(std::string_view name, int& v) {
     m_out[std::string(name)] = v;
 }
 
-/*
-void json_writer::visit(std::string_view name, bool& v) {
-    m_out[std::string(name)] = v;
+void json_writer::visit(std::string_view name, vec2& v) {
+    m_out[std::string(name)] = { {"x", v.x}, {"y", v.y} };
 }
 
 void json_writer::visit(std::string_view name, std::string& v) {
+    m_out[std::string(name)] = v;
+}
+
+/*
+void json_writer::visit(std::string_view name, bool& v) {
     m_out[std::string(name)] = v;
 }
 */
@@ -42,12 +46,19 @@ void json_reader::visit(std::string_view name, int& v) {
     read_into(m_in, name, v);
 }
 
-/*
-void json_reader::visit(std::string_view name, bool& v) {
-    read_into(m_in, name, v);
+void json_reader::visit(std::string_view name, vec2& v) {
+    auto it = m_in.find(std::string(name));
+    if (it == m_in.end() || it->is_null()) return;
+    v.x = it->value("x", v.x);
+    v.y = it->value("y", v.y);
 }
 
 void json_reader::visit(std::string_view name, std::string& v) {
+    read_into(m_in, name, v);
+}
+
+/*
+void json_reader::visit(std::string_view name, bool& v) {
     read_into(m_in, name, v);
 }
 */

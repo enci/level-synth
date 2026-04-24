@@ -156,9 +156,13 @@ void editor::draw_node_editor() {
         assert(entry && "Node registry entry not found for node");
         ImVec4 header_color = category_color(entry->category);
 
-        if (m_first_frame) {
+        auto pit = m_pending_node_positions.find(node_id);
+        if (pit != m_pending_node_positions.end()) {
+            ed::SetNodePosition(make_node_id(node_id), pit->second);
+            m_pending_node_positions.erase(pit);
+        } else if (m_first_frame) {
             ed::SetNodePosition(make_node_id(node_id),
-                ImVec2(10.0f + (node_id - 1) * 300.0f, 10.0f));
+                ImVec2(10.0f + node_id * 300.0f, 10.0f));
         }
 
         builder.Begin(make_node_id(node_id));
@@ -436,8 +440,10 @@ void editor::draw_toolbar() {
 
     if (ImGui::BeginPopup("MainMenu")) {
         if (ImGui::BeginMenu("File")) {
-            ImGui::MenuItem("New");
-            ImGui::MenuItem("Open...");
+            if (ImGui::MenuItem("New"))
+                new_graph();
+            if (ImGui::MenuItem("Open..."))
+                load_graph();
             if (ImGui::MenuItem("Save"))
                 save_graph();
             if (ImGui::MenuItem("Save As..."))
@@ -557,6 +563,42 @@ void editor::draw_toolbar() {
     ImGui::End();
 }
 
+static bool write_file_atomic(const std::filesystem::path& path, const std::string& data) {
+    std::filesystem::path tmp = path;
+    tmp += ".tmp";
+    {
+        std::ofstream f(tmp);
+        if (!f || !(f << data) || !f.flush()) {
+            std::filesystem::remove(tmp);
+            pfd::message("Save failed", "Could not write to file:\n" + tmp.string(),
+                         pfd::choice::ok, pfd::icon::error);
+            return false;
+        }
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmp, path, ec);
+    if (ec) {
+        std::filesystem::remove(tmp);
+        pfd::message("Save failed", "Could not replace file:\n" + path.string(),
+                     pfd::choice::ok, pfd::icon::error);
+        return false;
+    }
+    return true;
+}
+
+std::string editor::build_save_json() {
+    auto& graph = m_generator.graph();
+    ed::SetCurrentEditor(m_node_editor_context);
+    for (int nid : graph.node_ids()) {
+        if (auto* n = graph.find_node(nid)) {
+            auto pos = ed::GetNodePosition(make_node_id(nid));
+            n->set_position({ pos.x, pos.y });
+        }
+    }
+    ed::SetCurrentEditor(nullptr);
+    return graph.save();
+}
+
 void editor::save_graph_as() {
     auto dialog = pfd::save_file(
         "Save Graph",
@@ -566,25 +608,8 @@ void editor::save_graph_as() {
     std::filesystem::path path = dialog.result();
     if (path.empty()) return;
 
-    std::string json = m_generator.graph().save();
-    std::filesystem::path tmp = path;
-    tmp += ".tmp";
-    {
-        std::ofstream f(tmp);
-        if (!f || !(f << json) || !f.flush()) {
-            std::filesystem::remove(tmp);
-            pfd::message("Save failed", "Could not write to file:\n" + tmp.string(), pfd::choice::ok, pfd::icon::error);
-            return;
-        }
-    }
-    std::error_code ec;
-    std::filesystem::rename(tmp, path, ec);
-    if (ec) {
-        std::filesystem::remove(tmp);
-        pfd::message("Save failed", "Could not replace file:\n" + path.string(), pfd::choice::ok, pfd::icon::error);
-        return;
-    }
-    m_current_file = path;
+    if (write_file_atomic(path, build_save_json()))
+        m_current_file = path;
 }
 
 void editor::save_graph() {
@@ -592,22 +617,74 @@ void editor::save_graph() {
         save_graph_as();
         return;
     }
-    std::string json = m_generator.graph().save();
-    std::filesystem::path tmp = m_current_file;
-    tmp += ".tmp";
-    {
-        std::ofstream f(tmp);
-        if (!f || !(f << json) || !f.flush()) {
-            std::filesystem::remove(tmp);
-            pfd::message("Save failed", "Could not write to file:\n" + tmp.string(), pfd::choice::ok, pfd::icon::error);
-            return;
-        }
+    write_file_atomic(m_current_file, build_save_json());
+}
+
+void editor::new_graph() {
+    m_generator.graph().clear();
+    m_link_to_wire.clear();
+    m_pending_node_positions.clear();
+    m_next_link_id = 1;
+    m_current_file.clear();
+    m_first_frame = true;
+}
+
+void editor::load_graph() {
+    std::string initial = m_current_file.empty()
+        ? "."
+        : m_current_file.parent_path().string();
+
+    auto dialog = pfd::open_file(
+        "Open Graph", initial,
+        { "Level Synth Graph", "*.json", "All Files", "*" }
+    );
+    auto results = dialog.result();
+    if (results.empty()) return;
+    std::filesystem::path path = results[0];
+
+    std::ifstream f(path);
+    if (!f) {
+        pfd::message("Open failed", "Could not open file:\n" + path.string(),
+                     pfd::choice::ok, pfd::icon::error);
+        return;
     }
-    std::error_code ec;
-    std::filesystem::rename(tmp, m_current_file, ec);
-    if (ec) {
-        std::filesystem::remove(tmp);
-        pfd::message("Save failed", "Could not replace file:\n" + m_current_file.string(), pfd::choice::ok, pfd::icon::error);
+    std::string data((std::istreambuf_iterator<char>(f)),
+                      std::istreambuf_iterator<char>());
+
+    try {
+        m_generator.graph().load(data);
+
+        // Rebuild the editor link map from the newly loaded wires
+        m_link_to_wire.clear();
+        m_next_link_id = 1;
+        for (const auto& w : m_generator.graph().wires())
+            m_link_to_wire[m_next_link_id++] = { w.from_node, w.from_pin, w.to_node, w.to_pin };
+
+        // Positions are stored on each node; queue them for the next draw frame.
+        // If none are non-zero (old file without position data) fall back to
+        // the first-frame auto-layout instead.
+        m_pending_node_positions.clear();
+        bool has_positions = false;
+        for (int nid : m_generator.graph().node_ids()) {
+            if (const auto* n = m_generator.graph().find_node(nid)) {
+                auto p = n->position();
+                m_pending_node_positions[nid] = ImVec2(p.x, p.y);
+                if (p.x != 0.0f || p.y != 0.0f) has_positions = true;
+            }
+        }
+        if (!has_positions) {
+            m_pending_node_positions.clear();
+            m_first_frame = true;
+        } else {
+            m_first_frame = false;
+        }
+
+        m_current_file = path;
+        m_generator.evaluate();
+    } catch (const std::exception& e) {
+        pfd::message("Open failed",
+                     std::string("Could not parse file:\n") + e.what(),
+                     pfd::choice::ok, pfd::icon::error);
     }
 }
 
@@ -863,18 +940,21 @@ void editor::draw_details_panel() {
 
     const float panel_width = 220.0f;
     const float margin = 12.0f;
-    ImVec2 panel_pos(ImGui::GetIO().DisplaySize.x - panel_width - margin, margin);
+    // ImVec2 panel_pos(ImGui::GetIO().DisplaySize.x - panel_width - margin, margin);
 
-    ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
-    ImGui::SetNextWindowSizeConstraints(
-        ImVec2(panel_width, 0.0f),
-        ImVec2(panel_width, FLT_MAX));
+    // ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
+    //ImGui::SetNextWindowSizeConstraints(
+    //    ImVec2(panel_width, 0.0f),
+    //    ImVec2(panel_width, FLT_MAX));
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::Begin("##details", nullptr,
-        ImGuiWindowFlags_NoTitleBar  |
-        ImGuiWindowFlags_NoMove      |
-        ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_AlwaysAutoResize);
+    ImGui::Begin("##details", nullptr
+        // ,
+        // ImGuiWindowFlags_NoTitleBar  |
+        // ImGuiWindowFlags_NoMove      |
+        // ImGuiWindowFlags_NoScrollbar |
+        //ImGuiWindowFlags_AlwaysAutoResize
+        );
     ImGui::PopStyleVar();
 
     ImGui::TextUnformatted("Details");

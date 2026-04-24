@@ -1,8 +1,9 @@
 #pragma once
 
 #include <string_view>
-#include <string>
 // #include <functional>
+
+#include "vec2.hpp"
 
 namespace ls {
 
@@ -23,8 +24,9 @@ public:
     virtual ~node_visitor() = default;
     virtual void visit(std::string_view name, double& v) {}
     virtual void visit(std::string_view name, int& v) {}
+    virtual void visit(std::string_view name, vec2& v) {}
+    virtual void visit(std::string_view name, std::string& v) {}
     // virtual void visit(std::string_view name, bool& v) {}
-    // virtual void visit(std::string_view name, std::string& v) {}
 
     // Extend with additional types as they appear in nodes.
     // Examples you'll likely want later:

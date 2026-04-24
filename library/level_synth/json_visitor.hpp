@@ -20,8 +20,9 @@ public:
 
     void visit(std::string_view name, double& v) override;
     void visit(std::string_view name, int& v) override;
+    void visit(std::string_view name, vec2& v) override;
+    void visit(std::string_view name, std::string& v) override;
     // void visit(std::string_view name, bool& v) override;
-    // void visit(std::string_view name, std::string& v) override;
 
     // `visit_custom` is intentionally not overridden — custom draws are a
     // UI concern, not a serialisation one. If a node has state that can't
@@ -45,8 +46,9 @@ public:
 
     void visit(std::string_view name, double& v) override;
     void visit(std::string_view name, int& v) override;
+    void visit(std::string_view name, vec2& v) override;
+    void visit(std::string_view name, std::string& v) override;
     // void visit(std::string_view name, bool& v) override;
-    // void visit(std::string_view name, std::string& v) override;
 
 private:
     const nlohmann::json& m_in;

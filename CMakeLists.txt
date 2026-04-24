@@ -83,6 +83,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 set(LIBRARY_SOURCES
         library/level_synth/eval_context.cpp
         library/level_synth/eval_engine.cpp
+        library/level_synth/node.cpp
         library/level_synth/node_registry.cpp
         library/level_synth/generator.cpp
         library/level_synth/nodes/node_create_grid.cpp
