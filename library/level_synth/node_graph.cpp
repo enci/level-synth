@@ -70,18 +70,16 @@ std::string node_graph::save() const {
         const node* n = find_node(id);
         if (!n) continue;
 
-        nlohmann::json state;
-        json_writer writer(state);
-        const_cast<node*>(n)->accept(writer);
-        auto entry = reg.find(*n);
+        const auto* entry = reg.find(*n);
         assert(entry && "Node not registered");
 
-        j["nodes"].push_back({
-            {"id",    n->id()},
-            {"type",  std::string(entry->type_name)},
-            {"name",  n->name()},
-            {"state", std::move(state)},
-        });
+        nlohmann::json jn;
+        jn["id"]   = n->id();
+        jn["type"] = std::string(entry->type_name);
+        json_writer writer(jn);
+        const_cast<node*>(n)->accept(writer);
+
+        j["nodes"].push_back(std::move(jn));
     }
 
     j["wires"] = nlohmann::json::array();
@@ -97,8 +95,37 @@ std::string node_graph::save() const {
     return j.dump(2);   // pretty-printed, 2-space indent
 }
 
-void node_graph::load(const std::string& json) {
-    // nlohmann::json j = nlohmann::json::parse(json);
+void node_graph::load(const std::string& data) {
+    auto j = nlohmann::json::parse(data);
+
+    clear();
+
+    auto& reg = ls::node_registry::instance();
+
+    for (const auto& jn : j.value("nodes", nlohmann::json::array())) {
+        int saved_id     = jn["id"].get<int>();
+        std::string type = jn["type"].get<std::string>();
+
+        auto node_ptr = reg.create(type);
+        if (!node_ptr) continue;
+
+        node_ptr->m_id = saved_id;
+
+        json_reader reader(jn);
+        node_ptr->accept(reader);
+
+        m_nodes[saved_id] = std::move(node_ptr);
+        m_next_id = std::max(m_next_id, saved_id + 1);
+    }
+
+    for (const auto& jw : j.value("wires", nlohmann::json::array())) {
+        m_wires.push_back({
+            jw["from_node"].get<int>(),
+            jw["from_pin"].get<std::string>(),
+            jw["to_node"].get<int>(),
+            jw["to_pin"].get<std::string>()
+        });
+    }
 }
 
 void node_graph::clear() {

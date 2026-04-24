@@ -29,8 +29,11 @@ private:
     void apply_theme();
     void draw_window_shadow(ImVec2 pos, ImVec2 size, float rounding = 10.0f);
 
+    void new_graph();
+    void load_graph();
     void save_graph();
     void save_graph_as();
+    std::string build_save_json();
 
     ax::NodeEditor::EditorContext* m_node_editor_context = nullptr;
     ls::generator m_generator;
@@ -45,6 +48,7 @@ private:
     int m_next_link_id = 1;
     std::unordered_map<int, wire_visual> m_link_to_wire;
     ImVec2 m_popup_canvas_pos = {};
+    std::unordered_map<int, ImVec2> m_pending_node_positions;
 
     ImVec4 m_colors[editor_colors::Color_COUNT];
     bool m_dark_theme = true;
