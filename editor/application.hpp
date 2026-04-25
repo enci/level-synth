@@ -30,6 +30,8 @@ private:
 
     bool m_running;
     std::string m_title;
+    std::string m_pref_dir;
+    std::string m_imgui_ini_path; // must outlive the ImGui context
     int m_width;
     int m_height;
     float m_ui_scale;

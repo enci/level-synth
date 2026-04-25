@@ -31,9 +31,12 @@ editor::~editor() {
     }
 }
 
-void editor::init() {
+void editor::init(const std::string& pref_dir) {
+    m_pref_dir = pref_dir;
+    m_node_editor_settings_path = m_pref_dir + "node_editor.json";
+
     ax::NodeEditor::Config config;
-    config.SettingsFile = "NodeEditor.json";
+    config.SettingsFile = m_node_editor_settings_path.c_str();
     config.EnableSmoothZoom = false;
     config.NavigateButtonIndex = 2;
     config.CustomZoomLevels.push_back(1.0f);
@@ -66,7 +69,9 @@ void editor::init() {
     m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.80f, 0.80f, 0.82f, 0.60f);
     m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.70f, 0.70f, 0.72f, 0.80f);
 
+    m_generator.set_seed(42);
     m_generator.evaluate();
+    load_preferences();
 }
 
 void editor::draw() {
@@ -512,6 +517,17 @@ void editor::draw_toolbar() {
                 new_graph();
             if (ImGui::MenuItem("Open..."))
                 load_graph();
+            if (ImGui::BeginMenu("Open Recent", !m_recent_files.empty())) {
+                for (const auto& recent : m_recent_files) {
+                    std::filesystem::path p(recent);
+                    if (ImGui::MenuItem(p.filename().string().c_str()))
+                        load_graph(p);
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Clear Recent"))
+                    { m_recent_files.clear(); save_preferences(); }
+                ImGui::EndMenu();
+            }
             if (ImGui::MenuItem("Save"))
                 save_graph();
             if (ImGui::MenuItem("Save As..."))
@@ -542,8 +558,10 @@ void editor::draw_toolbar() {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Help")) {
-            if (ImGui::MenuItem("History", nullptr, m_show_history_panel))
+            if (ImGui::MenuItem("History", nullptr, m_show_history_panel)) {
                 m_show_history_panel = !m_show_history_panel;
+                save_preferences();
+            }
             if (ImGui::MenuItem("ImGui Demo", nullptr, m_show_demo_window))
                 m_show_demo_window = !m_show_demo_window;
             ImGui::Separator();
@@ -614,15 +632,15 @@ void editor::draw_toolbar() {
     ImGui::SameLine();
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 4.0f * scale);
     ImGui::SetNextItemWidth(64.0f * scale);
-    ImGui::DragInt("##seed", &m_seed);
+    int seed = m_generator.seed();
+    if (ImGui::DragInt("##seed", &seed))
+        m_generator.set_seed(seed);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Global generation seed");
     ImGui::SameLine();
 
-    if (ImGui::Button(phosphor::PH_PLAY, ImVec2(button_size, button_size))) {
-        m_generator.set_seed(m_seed);
+    if (ImGui::Button(phosphor::PH_PLAY, ImVec2(button_size, button_size)))
         m_generator.evaluate();
-    }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Evaluate graph");
 
@@ -692,6 +710,7 @@ void editor::save_graph_as() {
     if (write_file_atomic(path, build_save_json())) {
         m_current_file = path;
         m_history.mark_saved();
+        push_recent_file(path);
     }
 }
 
@@ -724,8 +743,10 @@ void editor::load_graph() {
     );
     auto results = dialog.result();
     if (results.empty()) return;
-    std::filesystem::path path = results[0];
+    load_graph(results[0]);
+}
 
+void editor::load_graph(const std::filesystem::path& path) {
     std::ifstream f(path);
     if (!f) {
         pfd::message("Open failed", "Could not open file:\n" + path.string(),
@@ -744,6 +765,7 @@ void editor::load_graph() {
 
         m_current_file = path;
         m_generator.evaluate();
+        push_recent_file(path);
     } catch (const std::exception& e) {
         pfd::message("Open failed",
                      std::string("Could not parse file:\n") + e.what(),
@@ -758,6 +780,36 @@ std::string editor::window_title() const {
     if (m_history.is_modified())
         name = "\u2022 " + name;    // bullet • = unsaved changes
     return name + " \u2014 Level Synth"; // em-dash —
+}
+
+void editor::load_preferences() {
+    std::ifstream f(m_pref_dir + "preferences.json");
+    if (!f) return;
+    try {
+        auto j = nlohmann::json::parse(f);
+        m_dark_theme         = j.value("theme", "dark") == "dark";
+        m_show_history_panel = j.value("show_history_panel", true);
+        for (const auto& p : j.value("recent_files", nlohmann::json::array()))
+            m_recent_files.push_back(p.get<std::string>());
+    } catch (...) {}
+}
+
+void editor::save_preferences() {
+    nlohmann::json j;
+    j["theme"]               = m_dark_theme ? "dark" : "light";
+    j["show_history_panel"]  = m_show_history_panel;
+    j["recent_files"]        = m_recent_files;
+    std::ofstream f(m_pref_dir + "preferences.json");
+    if (f) f << j.dump(2);
+}
+
+void editor::push_recent_file(const std::filesystem::path& path) {
+    std::string s = path.string();
+    std::erase(m_recent_files, s);
+    m_recent_files.insert(m_recent_files.begin(), s);
+    if (m_recent_files.size() > 10)
+        m_recent_files.resize(10);
+    save_preferences();
 }
 
 void editor::begin_edit(std::string description) {

@@ -18,7 +18,8 @@ public:
     generator(generator&&) = default;
     generator& operator=(generator&&) = default;
     void set_parameter(const std::string& name, double value);
-    void set_seed(int seed);
+    void set_seed(int seed) { m_seed = seed; }
+    int  seed()       const { return m_seed; }
     void evaluate();
     std::shared_ptr<grid> get_grid_output(const std::string& name) const;
     double get_number_output(const std::string& name) const;
