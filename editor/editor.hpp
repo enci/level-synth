@@ -20,6 +20,10 @@ public:
     void init();
     void draw();
 
+    /// Returns the string that should appear in the OS window title bar.
+    /// Format: ["• "] <filename|"Untitled"> " — Level Synth"
+    std::string window_title() const;
+
 private:
     void draw_node_editor();
     void draw_toolbar();

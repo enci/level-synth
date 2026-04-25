@@ -178,6 +178,13 @@ void application::update() {
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
     m_editor->draw();
+
+    // Keep the OS window title in sync with document state
+    std::string title = m_editor->window_title();
+    if (title != m_title) {
+        m_title = title;
+        SDL_SetWindowTitle(m_window, m_title.c_str());
+    }
 }
 
 void application::render() {

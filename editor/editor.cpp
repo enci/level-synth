@@ -683,8 +683,8 @@ std::string editor::build_save_json() {
 void editor::save_graph_as() {
     auto dialog = pfd::save_file(
         "Save Graph",
-        m_current_file.empty() ? "graph.json" : m_current_file.string(),
-        { "Level Synth Graph", "*.json", "All Files", "*" }
+        m_current_file.empty() ? "untitled.lsg" : m_current_file.string(),
+        { "Level Synth Graph", "*.lsg", "All Files", "*" }
     );
     std::filesystem::path path = dialog.result();
     if (path.empty()) return;
@@ -720,7 +720,7 @@ void editor::load_graph() {
 
     auto dialog = pfd::open_file(
         "Open Graph", initial,
-        { "Level Synth Graph", "*.json", "All Files", "*" }
+        { "Level Synth Graph", "*.lsg", "All Files", "*" }
     );
     auto results = dialog.result();
     if (results.empty()) return;
@@ -749,6 +749,15 @@ void editor::load_graph() {
                      std::string("Could not parse file:\n") + e.what(),
                      pfd::choice::ok, pfd::icon::error);
     }
+}
+
+std::string editor::window_title() const {
+    std::string name = m_current_file.empty()
+        ? "untitled.lsg"
+        : m_current_file.filename().string();
+    if (m_history.is_modified())
+        name = "\u2022 " + name;    // bullet • = unsaved changes
+    return name + " \u2014 Level Synth"; // em-dash —
 }
 
 void editor::begin_edit(std::string description) {
