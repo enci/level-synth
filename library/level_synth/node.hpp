@@ -25,7 +25,7 @@ public:
     const std::string& name() const { return m_name; }
     void set_name(std::string name) { m_name = std::move(name); }
 
-    vec2 position() const { return m_position; }
+    vec2 position() const { return m_position; }    
     void set_position(vec2 p) { m_position = p; }
 
 protected:
