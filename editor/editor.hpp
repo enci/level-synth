@@ -11,13 +11,14 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <string>
+#include <vector>
 
 class editor {
 public:
     editor() = default;
     ~editor();
 
-    void init();
+    void init(const std::string& pref_dir);
     void draw();
 
     /// Returns the string that should appear in the OS window title bar.
@@ -36,11 +37,16 @@ private:
     void draw_window_shadow(ImVec2 pos, ImVec2 size, float rounding = 10.0f);
 
     void new_graph();
-    void load_graph();
+    void load_graph();                                    // opens file dialog
+    void load_graph(const std::filesystem::path& path);  // loads directly
     void save_graph();
     void save_graph_as();
     std::string build_save_json();
     void rebuild_links_from_graph();
+
+    void load_preferences();
+    void save_preferences();
+    void push_recent_file(const std::filesystem::path& path);
 
     // Snapshot-based undo/redo: call begin_edit before mutating the graph,
     // commit_edit after. Any change — structural, property, custom node UI —
@@ -80,8 +86,10 @@ private:
     bool m_dark_theme = true;
     bool m_show_demo_window   = false;
     bool m_show_history_panel = true;
-    int m_seed = 42;
     std::filesystem::path m_current_file;
+    std::string m_pref_dir;
+    std::string m_node_editor_settings_path; // must outlive the editor context
+    std::vector<std::string> m_recent_files; // most-recent first, max 10
 
     // Node editor IDs share a flat namespace — tag each type with distinct high bits
     // to prevent collisions between node IDs, pin IDs, and link IDs.

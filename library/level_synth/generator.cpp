@@ -29,10 +29,6 @@ void generator::set_parameter(const std::string& name, double value) {
     n->set_value(value);
 }
 
-void generator::set_seed(int seed) {
-    m_seed = seed;
-}
-
 void generator::evaluate() {
     m_engine.evaluate(m_graph, m_seed);
 }

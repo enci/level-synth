@@ -48,7 +48,7 @@ application::application(const std::string& title, int width, int height)
     init_sdl();
     init_imgui();
     m_editor = std::make_unique<editor>();
-    m_editor->init();
+    m_editor->init(m_pref_dir);
 }
 
 application::~application() {
@@ -67,6 +67,10 @@ void application::init_sdl() {
     if (!display_mode)
         throw std::runtime_error("SDL_GetCurrentDisplayMode Error: " + std::string(SDL_GetError()));
     m_ui_scale = display_mode->pixel_density;
+
+    char* pref = SDL_GetPrefPath("LevelSynth", "LevelSynth");
+    m_pref_dir = pref ? pref : ".";
+    SDL_free(pref);
 
     m_window = SDL_CreateWindow(m_title.c_str(), m_width, m_height, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!m_window) {
@@ -99,6 +103,9 @@ void application::init_imgui() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    m_imgui_ini_path = m_pref_dir + "imgui.ini";
+    io.IniFilename = m_imgui_ini_path.c_str();
 
     ImGui_ImplSDL3_InitForSDLRenderer(m_window, m_renderer);
     ImGui_ImplSDLRenderer3_Init(m_renderer);
