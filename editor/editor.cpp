@@ -38,7 +38,7 @@ void editor::init(const std::string& pref_dir) {
     ax::NodeEditor::Config config;
     config.SettingsFile = m_node_editor_settings_path.c_str();
     config.EnableSmoothZoom = false;
-    config.NavigateButtonIndex = 2;
+    config.NavigateButtonIndex = 1; // right-drag pans; quick right-click still opens context menu
     config.CustomZoomLevels.push_back(1.0f);
     config.CanvasSizeMode = ax::NodeEditor::CanvasSizeMode::CenterOnly;
     m_node_editor_context = ed::CreateEditor(&config);
@@ -59,15 +59,15 @@ void editor::init(const std::string& pref_dir) {
     m_link_to_wire[m_next_link_id++] = { noise_id,  "grid", ca_id,    "input"  };
     m_link_to_wire[m_next_link_id++] = { ca_id,  "output", out_id,    "value"  };
 
-    m_colors[editor_colors::Color_PinNumber]           = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
-    m_colors[editor_colors::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
-    m_colors[editor_colors::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
-    m_colors[editor_colors::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
-    m_colors[editor_colors::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
-    m_colors[editor_colors::Color_ToolbarBg]           = ImVec4(0.95f, 0.95f, 0.96f, 0.92f);
-    m_colors[editor_colors::Color_ToolbarBorder]       = ImVec4(0.70f, 0.70f, 0.72f, 0.60f);
-    m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.80f, 0.80f, 0.82f, 0.60f);
-    m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.70f, 0.70f, 0.72f, 0.80f);
+    // m_colors[editor_colors::Color_PinNumber]           = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
+    // m_colors[editor_colors::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
+    // m_colors[editor_colors::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
+    // m_colors[editor_colors::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
+    // m_colors[editor_colors::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
+    // m_colors[editor_colors::Color_ToolbarBg]           = ImVec4(0.95f, 0.95f, 0.96f, 0.92f);
+    // m_colors[editor_colors::Color_ToolbarBorder]       = ImVec4(0.70f, 0.70f, 0.72f, 0.60f);
+    // m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.80f, 0.80f, 0.82f, 0.60f);
+    // m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.70f, 0.70f, 0.72f, 0.80f);
 
     m_generator.set_seed(42);
     m_generator.evaluate();
@@ -135,11 +135,13 @@ std::pair<int, int> editor::unpack_pin_id(ed::PinId pin_id) {
 }
 
 ImVec4 editor::pin_color(ls::pin_type type) const {
+    ImVec4 c;
     switch (type) {
-        case ls::pin_type::number: return m_colors[editor_colors::Color_PinNumber];
-        case ls::pin_type::grid:   return m_colors[editor_colors::Color_PinGrid];
+        case ls::pin_type::number: c = m_colors[editor_colors::Color_PinNumber]; break;
+        case ls::pin_type::grid:   c = m_colors[editor_colors::Color_PinGrid];   break;
+        default: return ImVec4(1, 1, 1, 1);
     }
-    return ImVec4(1, 1, 1, 1);
+    return c.w > 0.0f ? c : ImVec4(1, 1, 1, 1); // fall back to white if unset
 }
 
 ImVec4 editor::category_color(const std::string& category) const {
@@ -160,6 +162,11 @@ editor::pin_info editor::resolve_pin(ed::PinId pin_id) const {
 }
 
 void editor::draw_node_editor() {
+    // On macOS, Backspace (⌫) is the standard delete key in creative tools.
+    // imgui-node-editor only listens for ImGuiKey_Delete (fn+⌫), so remap.
+    if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Backspace))
+        ImGui::GetIO().AddKeyEvent(ImGuiKey_Delete, true);
+
     ed::SetCurrentEditor(m_node_editor_context);
     ed::Begin("Level Synth", ImVec2(0.0, 0.0f));
 
@@ -441,7 +448,7 @@ void editor::draw_node_editor() {
     // normal screen coordinates (not the canvas-transformed space).
     bool open_add_node_popup = ed::ShowBackgroundContextMenu();
     if (open_add_node_popup)
-        m_popup_canvas_pos = ed::ScreenToCanvas(ImGui::GetMousePos());
+        m_popup_canvas_pos = ImGui::GetMousePos(); // already canvas-space inside ed::Begin()/End()
 
     ed::Suspend();
     if (open_add_node_popup)
@@ -616,7 +623,7 @@ void editor::draw_toolbar() {
     ImGui::SameLine();
 
     if (ImGui::Button(phosphor::PH_FRAME_CORNERS, ImVec2(button_size, button_size)))
-        ed::NavigateToContent();
+        ed::NavigateToContentCenter();
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Fit to content");
 
@@ -838,6 +845,13 @@ void editor::draw_history_panel() {
     const int  cur   = m_history.pos();
     const int  saved = m_history.saved_pos();
 
+    // Compute total raw memory (each entry stores two strings)
+    size_t total_bytes = 0;
+    for (int i = 0; i < n; ++i) {
+        const auto& e = m_history.entry(i);
+        total_bytes += e.before_json.size() + e.after_json.size();
+    }
+
     // "Initial state" row
     if (cur == 0)
         ImGui::TextColored(ImVec4(1, 0.85f, 0, 1), ">> (initial state)");
@@ -850,20 +864,25 @@ void editor::draw_history_panel() {
         const bool is_redo  = (i >= cur);
         const bool is_saved = (i == saved - 1);
 
+        float kb = static_cast<float>(e.after_json.size()) / 1024.0f;
         const char* saved_marker = is_saved ? " [saved]" : "";
 
         if (is_redo)
-            ImGui::TextDisabled("   %s%s", e.description.c_str(), saved_marker);
+            ImGui::TextDisabled("   %s%s  %.1f KB", e.description.c_str(), saved_marker, kb);
         else if (is_cur)
-            ImGui::TextColored(ImVec4(1, 0.85f, 0, 1), ">> %s%s",
-                               e.description.c_str(), saved_marker);
+            ImGui::TextColored(ImVec4(1, 0.85f, 0, 1), ">> %s%s  %.1f KB",
+                               e.description.c_str(), saved_marker, kb);
         else
-            ImGui::Text("   %s%s", e.description.c_str(), saved_marker);
+            ImGui::Text("   %s%s  %.1f KB", e.description.c_str(), saved_marker, kb);
     }
 
     // Auto-scroll to keep current entry visible
     if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
         ImGui::SetScrollHereY(1.0f);
+
+    ImGui::Separator();
+    float total_kb = static_cast<float>(total_bytes) / 1024.0f;
+    ImGui::TextDisabled("%d snapshots  |  %.1f KB total", n, total_kb);
 
     ImGui::End();
 }
@@ -881,6 +900,7 @@ void editor::rebuild_links_from_graph() {
 }
 
 void editor::set_node_editor_style() {
+#if 0
     ed::Style& edStyle = ed::GetStyle();
     edStyle.NodePadding              = ImVec4(8, 8, 8, 8);
     edStyle.NodeRounding             = 12.0f;
@@ -908,6 +928,7 @@ void editor::set_node_editor_style() {
     edStyle.GroupBorderWidth         = 1.0f;
     edStyle.HighlightConnectedLinks  = 0.0f;
     edStyle.SnapLinkToPinDir         = 0.0f;
+#endif
 }
 
 void editor::apply_theme() {
@@ -920,6 +941,7 @@ void editor::apply_theme() {
 }
 
 void editor::set_light_theme() {
+#if 0
     auto& style = ImGui::GetStyle();
     style.WindowBorderSize = 0.0f;
     style.FrameBorderSize = 0.0f;
@@ -985,15 +1007,15 @@ void editor::set_light_theme() {
     colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
     colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
 
-    m_colors[editor_colors::Color_PinNumber]           = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
-    m_colors[editor_colors::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
-    m_colors[editor_colors::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
-    m_colors[editor_colors::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
-    m_colors[editor_colors::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
-    m_colors[editor_colors::Color_ToolbarBg]           = ImVec4(0.95f, 0.95f, 0.96f, 0.92f);
-    m_colors[editor_colors::Color_ToolbarBorder]       = ImVec4(0.70f, 0.70f, 0.72f, 0.60f);
-    m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.80f, 0.80f, 0.82f, 0.60f);
-    m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.70f, 0.70f, 0.72f, 0.80f);
+    // m_colors[editor_colors::Color_PinNumber]           = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
+    // m_colors[editor_colors::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
+    // m_colors[editor_colors::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
+    // m_colors[editor_colors::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
+    // m_colors[editor_colors::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
+    // m_colors[editor_colors::Color_ToolbarBg]           = ImVec4(0.95f, 0.95f, 0.96f, 0.92f);
+    // m_colors[editor_colors::Color_ToolbarBorder]       = ImVec4(0.70f, 0.70f, 0.72f, 0.60f);
+    // m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.80f, 0.80f, 0.82f, 0.60f);
+    // m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.70f, 0.70f, 0.72f, 0.80f);
 
     set_node_editor_style();
 
@@ -1019,9 +1041,11 @@ void editor::set_light_theme() {
     edStyle.Colors[StyleColor_FlowMarker]          = ImColor(255, 128, 64, 255);
     edStyle.Colors[StyleColor_GroupBg]             = ImColor(0, 0, 0, 24);
     edStyle.Colors[StyleColor_GroupBorder]         = ImColor(0, 0, 0, 32);
+#endif
 }
 
 void editor::set_dark_theme() {
+#if 0
     auto& style = ImGui::GetStyle();
     style.WindowBorderSize = 0.0f;
     style.FrameBorderSize = 0.0f;
@@ -1087,15 +1111,15 @@ void editor::set_dark_theme() {
     colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
     colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
 
-    m_colors[editor_colors::Color_PinNumber]           = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
-    m_colors[editor_colors::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
-    m_colors[editor_colors::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
-    m_colors[editor_colors::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
-    m_colors[editor_colors::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
-    m_colors[editor_colors::Color_ToolbarBg]           = ImVec4(0.18f, 0.18f, 0.19f, 0.92f);
-    m_colors[editor_colors::Color_ToolbarBorder]       = ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
-    m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
-    m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.35f, 0.35f, 0.37f, 0.80f);
+    // m_colors[editor_colors::Color_PinNumber]           = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
+    // m_colors[editor_colors::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
+    // m_colors[editor_colors::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
+    // m_colors[editor_colors::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
+    // m_colors[editor_colors::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
+    // m_colors[editor_colors::Color_ToolbarBg]           = ImVec4(0.18f, 0.18f, 0.19f, 0.92f);
+    // m_colors[editor_colors::Color_ToolbarBorder]       = ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
+    // m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
+    // m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.35f, 0.35f, 0.37f, 0.80f);
 
     set_node_editor_style();
 
@@ -1121,6 +1145,7 @@ void editor::set_dark_theme() {
     edStyle.Colors[StyleColor_FlowMarker]          = ImColor(255, 128, 64, 255);
     edStyle.Colors[StyleColor_GroupBg]             = ImColor(0, 0, 0, 120);
     edStyle.Colors[StyleColor_GroupBorder]         = ImColor(255, 255, 255, 24);
+#endif
 }
 
 void editor::draw_details_panel() {

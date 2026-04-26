@@ -187,6 +187,8 @@ add_executable(level_synth_editor
         ${IMGUI_FREETYPE_SOURCES}
 )
 
+set_target_properties(level_synth_editor PROPERTIES OUTPUT_NAME "LevelSynth")
+
 target_include_directories(level_synth_editor PRIVATE
         ${EDITOR_DIR}
         ${IMGUI_DIR}
