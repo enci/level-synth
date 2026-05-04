@@ -51,8 +51,15 @@ public:
     /// Save as json
     std::string save() const;
 
+    /// Serialize a subset of nodes and their internal wires as clipboard JSON.
+    std::string save_subgraph(const std::vector<int>& ids) const;
+
     /// Load from json (existing graph will be cleared)
     void load(const std::string& data);
+
+    /// Paste a clipboard JSON into the graph. Nodes get fresh IDs.
+    /// Returns a map from old ID (in the JSON) to newly assigned ID.
+    std::unordered_map<int, int> paste_subgraph(const std::string& json, float offset_x = 20.0f, float offset_y = 20.0f);
 
     /// Clear the graph
     void clear();

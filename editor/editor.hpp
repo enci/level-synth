@@ -25,6 +25,12 @@ public:
     /// Format: ["• "] <filename|"Untitled"> " — Level Synth"
     std::string window_title() const;
 
+    /// Called by the application when the OS sends a quit signal.
+    void request_quit();
+
+    /// Returns true once the user has confirmed quitting (or the graph is clean).
+    bool quit_confirmed() const { return m_quit_confirmed; }
+
 private:
     void draw_node_editor();
     void draw_toolbar();
@@ -39,10 +45,18 @@ private:
     void new_graph();
     void load_graph();                                    // opens file dialog
     void load_graph(const std::filesystem::path& path);  // loads directly
-    void save_graph();
-    void save_graph_as();
+    bool save_graph();
+    bool save_graph_as();
     std::string build_save_json();
     void rebuild_links_from_graph();
+
+    void copy_selection();
+    void paste_clipboard();
+
+    enum class pending_action { none, new_graph, open_graph, open_path, quit };
+    void check_unsaved_then(pending_action action, const std::filesystem::path& path = {});
+    void execute_pending_action();
+    void draw_unsaved_modal();
 
     void load_preferences();
     void save_preferences();
@@ -90,6 +104,10 @@ private:
     std::string m_pref_dir;
     std::string m_node_editor_settings_path; // must outlive the editor context
     std::vector<std::string> m_recent_files; // most-recent first, max 10
+
+    bool m_quit_confirmed = false;
+    pending_action m_pending_action = pending_action::none;
+    std::filesystem::path m_pending_path;
 
     // Node editor IDs share a flat namespace — tag each type with distinct high bits
     // to prevent collisions between node IDs, pin IDs, and link IDs.

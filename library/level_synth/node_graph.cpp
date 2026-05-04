@@ -1,6 +1,7 @@
 #include "node_graph.hpp"
 #include "json_visitor.hpp"
 #include "node_registry.hpp"
+#include <unordered_set>
 
 namespace ls {
 
@@ -124,6 +125,84 @@ void node_graph::load(const std::string& data) {
             jw["to_pin"].get<std::string>()
         });
     }
+}
+
+std::string node_graph::save_subgraph(const std::vector<int>& ids) const {
+    std::unordered_set<int> id_set(ids.begin(), ids.end());
+    auto& reg = ls::node_registry::instance();
+
+    nlohmann::json j;
+    j["type"] = "level_synth_clipboard";
+    j["nodes"] = nlohmann::json::array();
+    j["wires"] = nlohmann::json::array();
+
+    for (int id : ids) {
+        const node* n = find_node(id);
+        if (!n) continue;
+        const auto* entry = reg.find(*n);
+        if (!entry) continue;
+
+        nlohmann::json jn;
+        jn["id"]   = n->id();
+        jn["type"] = std::string(entry->type_name);
+        json_writer writer(jn);
+        const_cast<node*>(n)->accept(writer);
+        j["nodes"].push_back(std::move(jn));
+    }
+
+    for (const auto& w : m_wires) {
+        if (id_set.count(w.from_node) && id_set.count(w.to_node)) {
+            j["wires"].push_back({
+                {"from_node", w.from_node},
+                {"from_pin",  w.from_pin},
+                {"to_node",   w.to_node},
+                {"to_pin",    w.to_pin},
+            });
+        }
+    }
+
+    return j.dump(2);
+}
+
+std::unordered_map<int, int> node_graph::paste_subgraph(const std::string& json_str, float offset_x, float offset_y) {
+    auto j = nlohmann::json::parse(json_str);
+    auto& reg = ls::node_registry::instance();
+
+    std::unordered_map<int, int> id_map;
+
+    for (const auto& jn : j.value("nodes", nlohmann::json::array())) {
+        int old_id       = jn["id"].get<int>();
+        std::string type = jn["type"].get<std::string>();
+
+        auto node_ptr = reg.create(type);
+        if (!node_ptr) continue;
+
+        json_reader reader(jn);
+        node_ptr->accept(reader);
+
+        auto pos = node_ptr->position();
+        node_ptr->set_position({ pos.x + offset_x, pos.y + offset_y });
+
+        int new_id = add_node(std::move(node_ptr));
+        id_map[old_id] = new_id;
+    }
+
+    for (const auto& jw : j.value("wires", nlohmann::json::array())) {
+        int old_from = jw["from_node"].get<int>();
+        int old_to   = jw["to_node"].get<int>();
+        auto it_from = id_map.find(old_from);
+        auto it_to   = id_map.find(old_to);
+        if (it_from == id_map.end() || it_to == id_map.end()) continue;
+
+        m_wires.push_back({
+            it_from->second,
+            jw["from_pin"].get<std::string>(),
+            it_to->second,
+            jw["to_pin"].get<std::string>()
+        });
+    }
+
+    return id_map;
 }
 
 void node_graph::clear() {
