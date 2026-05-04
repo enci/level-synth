@@ -172,7 +172,7 @@ void application::process_events() {
 
 void application::dispatch_event(const SDL_Event& event) {
     if (event.type == SDL_EVENT_QUIT)
-        m_running = false;
+        m_editor->request_quit();
 
     if (event.type == SDL_EVENT_WINDOW_RESIZED) {
         m_width = event.window.data1;
@@ -185,6 +185,9 @@ void application::update() {
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
     m_editor->draw();
+
+    if (m_editor->quit_confirmed())
+        m_running = false;
 
     // Keep the OS window title in sync with document state
     std::string title = m_editor->window_title();

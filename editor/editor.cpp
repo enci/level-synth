@@ -7,6 +7,7 @@
 
 #define NOMINMAX
 #include <portable-file-dialogs.h>
+#include <SDL3/SDL.h>
 
 #include "imgui_internal.h"
 
@@ -75,9 +76,10 @@ void editor::init(const std::string& pref_dir) {
 }
 
 void editor::draw() {
-    // Undo / Redo keyboard shortcuts (skip when a text field has focus)
+    // Keyboard shortcuts (skip when a text field has focus)
     if (!ImGui::GetIO().WantTextInput) {
         auto& graph = m_generator.graph();
+        // Undo / Redo
         if (ImGui::IsKeyChordPressed(ImGuiMod_Shortcut | ImGuiMod_Shift | ImGuiKey_Z) ||
             ImGui::IsKeyChordPressed(ImGuiMod_Shortcut | ImGuiKey_Y)) {
             if (m_history.can_redo()) {
@@ -94,6 +96,20 @@ void editor::draw() {
                 m_generator.evaluate();
             }
         }
+        // Save (check Shift+S before S so exact modifier match fires correctly)
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Shortcut | ImGuiMod_Shift | ImGuiKey_S))
+            save_graph_as();
+        else if (ImGui::IsKeyChordPressed(ImGuiMod_Shortcut | ImGuiKey_S))
+            save_graph();
+        // Copy / Cut / Paste
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Shortcut | ImGuiKey_C))
+            copy_selection();
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Shortcut | ImGuiKey_X)) {
+            copy_selection();
+            ImGui::GetIO().AddKeyEvent(ImGuiKey_Delete, true);
+        }
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Shortcut | ImGuiKey_V))
+            paste_clipboard();
     }
 
     ImGuiViewport* vp = ImGui::GetMainViewport();
@@ -115,6 +131,7 @@ void editor::draw() {
         ImGui::ShowDemoWindow(&m_show_demo_window);
 
     draw_history_panel();
+    draw_unsaved_modal();
 }
 
 ed::NodeId editor::make_node_id(int node_id) {
@@ -520,28 +537,28 @@ void editor::draw_toolbar() {
 
     if (ImGui::BeginPopup("MainMenu")) {
         if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("New"))
-                new_graph();
-            if (ImGui::MenuItem("Open..."))
-                load_graph();
+            if (ImGui::MenuItem("New", "Cmd+N"))
+                check_unsaved_then(pending_action::new_graph);
+            if (ImGui::MenuItem("Open...", "Cmd+O"))
+                check_unsaved_then(pending_action::open_graph);
             if (ImGui::BeginMenu("Open Recent", !m_recent_files.empty())) {
                 for (const auto& recent : m_recent_files) {
                     std::filesystem::path p(recent);
                     if (ImGui::MenuItem(p.filename().string().c_str()))
-                        load_graph(p);
+                        check_unsaved_then(pending_action::open_path, p);
                 }
                 ImGui::Separator();
                 if (ImGui::MenuItem("Clear Recent"))
                     { m_recent_files.clear(); save_preferences(); }
                 ImGui::EndMenu();
             }
-            if (ImGui::MenuItem("Save"))
+            if (ImGui::MenuItem("Save", "Cmd+S"))
                 save_graph();
-            if (ImGui::MenuItem("Save As..."))
+            if (ImGui::MenuItem("Save As...", "Cmd+Shift+S"))
                 save_graph_as();
             ImGui::Separator();
             if (ImGui::MenuItem("Quit"))
-                ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, true); // handled by application
+                request_quit();
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Edit")) {
@@ -559,9 +576,17 @@ void editor::draw_toolbar() {
                 m_generator.evaluate();
             }
             ImGui::Separator();
-            ImGui::MenuItem("Cut");
-            ImGui::MenuItem("Copy");
-            ImGui::MenuItem("Paste");
+            ed::SetCurrentEditor(m_node_editor_context);
+            bool has_selection = ed::GetSelectedObjectCount() > 0;
+            ed::SetCurrentEditor(nullptr);
+            if (ImGui::MenuItem("Cut", "Cmd+X", false, has_selection)) {
+                copy_selection();
+                ImGui::GetIO().AddKeyEvent(ImGuiKey_Delete, true);
+            }
+            if (ImGui::MenuItem("Copy", "Cmd+C", false, has_selection))
+                copy_selection();
+            if (ImGui::MenuItem("Paste", "Cmd+V"))
+                paste_clipboard();
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Help")) {
@@ -705,29 +730,32 @@ std::string editor::build_save_json() {
     return graph.save();
 }
 
-void editor::save_graph_as() {
+bool editor::save_graph_as() {
     auto dialog = pfd::save_file(
         "Save Graph",
         m_current_file.empty() ? "untitled.lsg" : m_current_file.string(),
         { "Level Synth Graph", "*.lsg", "All Files", "*" }
     );
     std::filesystem::path path = dialog.result();
-    if (path.empty()) return;
+    if (path.empty()) return false;
 
     if (write_file_atomic(path, build_save_json())) {
         m_current_file = path;
         m_history.mark_saved();
         push_recent_file(path);
+        return true;
     }
+    return false;
 }
 
-void editor::save_graph() {
-    if (m_current_file.empty()) {
-        save_graph_as();
-        return;
-    }
-    if (write_file_atomic(m_current_file, build_save_json()))
+bool editor::save_graph() {
+    if (m_current_file.empty())
+        return save_graph_as();
+    if (write_file_atomic(m_current_file, build_save_json())) {
         m_history.mark_saved();
+        return true;
+    }
+    return false;
 }
 
 void editor::new_graph() {
@@ -897,6 +925,120 @@ void editor::rebuild_links_from_graph() {
     std::erase_if(m_positioned_nodes, [&](int id) {
         return !m_generator.graph().find_node(id);
     });
+}
+
+void editor::copy_selection() {
+    ed::SetCurrentEditor(m_node_editor_context);
+    int total = ed::GetSelectedObjectCount();
+    std::vector<ed::NodeId> selected(total);
+    int count = ed::GetSelectedNodes(selected.data(), total);
+
+    auto& graph = m_generator.graph();
+    std::vector<int> ids;
+    for (int i = 0; i < count; i++) {
+        int nid = static_cast<int>(selected[i].Get() & ~k_node_tag);
+        if (auto* n = graph.find_node(nid)) {
+            // Sync canvas position into the node object before serializing
+            auto pos = ed::GetNodePosition(make_node_id(nid));
+            n->set_position({ pos.x, pos.y });
+            ids.push_back(nid);
+        }
+    }
+    ed::SetCurrentEditor(nullptr);
+
+    if (ids.empty()) return;
+
+    std::string json = graph.save_subgraph(ids);
+    SDL_SetClipboardText(json.c_str());
+}
+
+void editor::paste_clipboard() {
+    if (!SDL_HasClipboardText()) return;
+    char* raw = SDL_GetClipboardText();
+    if (!raw || !*raw) { SDL_free(raw); return; }
+    std::string json_str = raw;
+    SDL_free(raw);
+
+    try {
+        auto j = nlohmann::json::parse(json_str);
+        if (j.value("type", "") != "level_synth_clipboard") return;
+    } catch (...) {
+        return;
+    }
+
+    auto& graph = m_generator.graph();
+    begin_edit("Paste");
+    auto id_map = graph.paste_subgraph(json_str, 20.0f, 20.0f);
+    commit_edit();
+    rebuild_links_from_graph();
+
+    ed::SetCurrentEditor(m_node_editor_context);
+    ed::ClearSelection();
+    for (const auto& [old_id, new_id] : id_map)
+        ed::SelectNode(make_node_id(new_id), true);
+    ed::SetCurrentEditor(nullptr);
+}
+
+void editor::request_quit() {
+    check_unsaved_then(pending_action::quit);
+}
+
+void editor::check_unsaved_then(pending_action action, const std::filesystem::path& path) {
+    m_pending_action = action;
+    m_pending_path   = path;
+    if (!m_history.is_modified())
+        execute_pending_action();
+    // Otherwise the modal will open and call execute_pending_action on user confirmation
+}
+
+void editor::execute_pending_action() {
+    auto action = m_pending_action;
+    auto path   = m_pending_path;
+    m_pending_action = pending_action::none;
+    m_pending_path.clear();
+
+    switch (action) {
+        case pending_action::new_graph:  new_graph();       break;
+        case pending_action::open_graph: load_graph();      break;
+        case pending_action::open_path:  load_graph(path);  break;
+        case pending_action::quit:       m_quit_confirmed = true; break;
+        case pending_action::none:       break;
+    }
+}
+
+void editor::draw_unsaved_modal() {
+    if (m_pending_action != pending_action::none && !ImGui::IsPopupOpen("Unsaved Changes##modal"))
+        ImGui::OpenPopup("Unsaved Changes##modal");
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    if (ImGui::BeginPopupModal("Unsaved Changes##modal", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        std::string filename = m_current_file.empty()
+            ? "untitled.lsg"
+            : m_current_file.filename().string();
+        ImGui::Text("Save changes to \"%s\"?", filename.c_str());
+        ImGui::Spacing();
+
+        if (ImGui::Button("Save", ImVec2(110, 0))) {
+            ImGui::CloseCurrentPopup();
+            if (save_graph())
+                execute_pending_action();
+            else
+                m_pending_action = pending_action::none; // file dialog was cancelled
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Don't Save", ImVec2(110, 0))) {
+            ImGui::CloseCurrentPopup();
+            execute_pending_action();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(110, 0))) {
+            ImGui::CloseCurrentPopup();
+            m_pending_action = pending_action::none;
+            m_pending_path.clear();
+        }
+        ImGui::EndPopup();
+    }
 }
 
 void editor::set_node_editor_style() {
