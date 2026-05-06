@@ -20,26 +20,26 @@ int main() {
 
     // Blank 64x32 grid
     auto create = std::make_unique<ls::node_create_grid>();
-    create->m_width  = 64;
-    create->m_height = 32;
+    // create->m_width  = 64;
+    // create->m_height = 32;
     int create_id = graph.add_node(std::move(create));
 
     // Expose noise density as a named parameter
     auto density_in = std::make_unique<ls::node_input_number>();
-    density_in->m_value = 0.45;
+    // density_in->m_value = 0.45;
     density_in->set_name("density");
     int density_id = graph.add_node(std::move(density_in));
 
     // Random noise
     auto noise = std::make_unique<ls::node_noise_grid>();
-    noise->density = 0.45;
+    // noise->density = 0.45;
     int noise_id = graph.add_node(std::move(noise));
 
     // Cellular automata
     auto ca = std::make_unique<ls::node_cellular_automata>();
-    ca->m_iterations = 5;
-    ca->m_birth      = 5;
-    ca->m_death      = 4;
+    // ca->m_iterations = 5;
+    // ca->m_birth      = 5;
+    // ca->m_death      = 4;
     int ca_id = graph.add_node(std::move(ca));
 
     // Named output

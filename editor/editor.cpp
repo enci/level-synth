@@ -22,6 +22,8 @@
 #include <map>
 #include <set>
 #include <algorithm>
+#include <sstream>
+#include <cstring>
 
 namespace ed = ax::NodeEditor;
 
@@ -112,14 +114,46 @@ void editor::draw() {
             paste_clipboard();
     }
 
+    draw_menu_bar();
+
     ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_Always);
+
+    // Full-screen DockSpace host
+    ImGui::SetNextWindowPos(vp->WorkPos);
+    ImGui::SetNextWindowSize(vp->WorkSize);
+    ImGui::SetNextWindowViewport(vp->ID);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::Begin("##dockspace", nullptr,
+        ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoResize  | ImGuiWindowFlags_NoMove     |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus);
+    ImGui::PopStyleVar(2);
+    ImGuiID dockspace_id = ImGui::DockSpace(ImGui::GetID("MainDockSpace"), ImVec2(0, 0), ImGuiDockNodeFlags_NoCloseButton);
+    ImGui::End();
+
+    // Build the initial docking layout on first run or after a reset.
+    // We check the Node Editor's saved dock ID rather than the node pointer,
+    // because DockSpace() always creates the node — so the pointer is never null.
+    // LoadIniSettingsFromMemory("") clears window settings, so the dock ID goes
+    // back to 0, which triggers a rebuild on the next frame.
+    if (!m_dockspace_layout_built) {
+        m_dockspace_layout_built = true;
+        ImGuiWindowSettings* s = ImGui::FindWindowSettingsByID(ImHashStr("Node Editor"));
+        if (s == nullptr || s->DockId == 0) {
+            ImGui::DockBuilderRemoveNode(dockspace_id);
+            ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+            ImGui::DockBuilderSetNodeSize(dockspace_id, vp->WorkSize);
+            ImGui::DockBuilderDockWindow("Node Editor", dockspace_id);
+            ImGui::DockBuilderFinish(dockspace_id);
+        }
+    }
+
+    ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_FirstUseEver);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::Begin("Node Editor", nullptr,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-        ImGuiWindowFlags_NoTitleBar  | ImGuiWindowFlags_NoResize          |
-        ImGuiWindowFlags_NoMove      | ImGuiWindowFlags_NoBringToFrontOnFocus);
+        ImGuiWindowFlags_NoTitleBar  | ImGuiWindowFlags_NoBringToFrontOnFocus);
     draw_node_editor();
     ImGui::End();
     ImGui::PopStyleVar();
@@ -129,6 +163,9 @@ void editor::draw() {
 
     if (m_show_demo_window)
         ImGui::ShowDemoWindow(&m_show_demo_window);
+
+    if (m_show_node_editor_style_window)
+        draw_node_editor_style_editor();
 
     draw_history_panel();
     draw_unsaved_modal();
@@ -508,6 +545,95 @@ void editor::draw_node_editor() {
     ed::SetCurrentEditor(nullptr);
 }
 
+void editor::draw_menu_bar() {
+    if (!ImGui::BeginMainMenuBar())
+        return;
+
+    auto& graph = m_generator.graph();
+
+    if (ImGui::BeginMenu("File")) {
+        if (ImGui::MenuItem("New", "Cmd+N"))
+            check_unsaved_then(pending_action::new_graph);
+        if (ImGui::MenuItem("Open...", "Cmd+O"))
+            check_unsaved_then(pending_action::open_graph);
+        if (ImGui::BeginMenu("Open Recent", !m_recent_files.empty())) {
+            for (const auto& recent : m_recent_files) {
+                std::filesystem::path p(recent);
+                if (ImGui::MenuItem(p.filename().string().c_str()))
+                    check_unsaved_then(pending_action::open_path, p);
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Clear Recent"))
+                { m_recent_files.clear(); save_preferences(); }
+            ImGui::EndMenu();
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Save", "Cmd+S"))
+            save_graph();
+        if (ImGui::MenuItem("Save As...", "Cmd+Shift+S"))
+            save_graph_as();
+        ImGui::Separator();
+        if (ImGui::MenuItem("Quit"))
+            request_quit();
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Edit")) {
+        if (ImGui::MenuItem("Undo", "Cmd+Z", false, m_history.can_undo())) {
+            m_history.undo(graph);
+            m_positioned_nodes.clear();
+            rebuild_links_from_graph();
+            m_generator.evaluate();
+        }
+        if (ImGui::MenuItem("Redo", "Cmd+Shift+Z", false, m_history.can_redo())) {
+            m_history.redo(graph);
+            m_positioned_nodes.clear();
+            rebuild_links_from_graph();
+            m_generator.evaluate();
+        }
+        ImGui::Separator();
+        ed::SetCurrentEditor(m_node_editor_context);
+        bool has_selection = ed::GetSelectedObjectCount() > 0;
+        ed::SetCurrentEditor(nullptr);
+        if (ImGui::MenuItem("Cut", "Cmd+X", false, has_selection)) {
+            copy_selection();
+            ImGui::GetIO().AddKeyEvent(ImGuiKey_Delete, true);
+        }
+        if (ImGui::MenuItem("Copy", "Cmd+C", false, has_selection))
+            copy_selection();
+        if (ImGui::MenuItem("Paste", "Cmd+V"))
+            paste_clipboard();
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Windows")) {
+        if (ImGui::MenuItem("Details", nullptr, m_show_details_panel))
+            m_show_details_panel = !m_show_details_panel;
+        if (ImGui::MenuItem("History", nullptr, m_show_history_panel)) {
+            m_show_history_panel = !m_show_history_panel;
+            save_preferences();
+        }
+        if (ImGui::MenuItem("Node Editor Style", nullptr, m_show_node_editor_style_window))
+            m_show_node_editor_style_window = !m_show_node_editor_style_window;
+        if (ImGui::MenuItem("ImGui Demo", nullptr, m_show_demo_window))
+            m_show_demo_window = !m_show_demo_window;
+        ImGui::Separator();
+        if (ImGui::MenuItem("Reset UI Layout")) {
+            std::filesystem::remove(m_pref_dir + "imgui.ini");
+            ImGui::LoadIniSettingsFromMemory("", 0);
+            m_dockspace_layout_built = false;
+        }
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Help")) {
+        ImGui::MenuItem("About Level Synth");
+        ImGui::EndMenu();
+    }
+
+    ImGui::EndMainMenuBar();
+}
+
 void editor::draw_toolbar() {
     auto& io = ImGui::GetIO();
     const float scale = 1.0f;
@@ -515,7 +641,7 @@ void editor::draw_toolbar() {
     const float toolbar_height = 36.0f * scale;
     const float button_size = 24.0f * scale;
 
-    float toolbar_width = 540.0f * scale;
+    float toolbar_width = 500.0f * scale;
     float toolbar_x = (io.DisplaySize.x - toolbar_width) * 0.5f;
     float toolbar_y = 12.0f * scale;
 
@@ -529,83 +655,8 @@ void editor::draw_toolbar() {
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |
         ImGuiWindowFlags_NoScrollWithMouse |
-        ImGuiWindowFlags_NoCollapse);
-
-    // Hamburger menu button
-    if (ImGui::Button(phosphor::PH_LIST, ImVec2(button_size, button_size)))
-        ImGui::OpenPopup("MainMenu");
-
-    if (ImGui::BeginPopup("MainMenu")) {
-        if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("New", "Cmd+N"))
-                check_unsaved_then(pending_action::new_graph);
-            if (ImGui::MenuItem("Open...", "Cmd+O"))
-                check_unsaved_then(pending_action::open_graph);
-            if (ImGui::BeginMenu("Open Recent", !m_recent_files.empty())) {
-                for (const auto& recent : m_recent_files) {
-                    std::filesystem::path p(recent);
-                    if (ImGui::MenuItem(p.filename().string().c_str()))
-                        check_unsaved_then(pending_action::open_path, p);
-                }
-                ImGui::Separator();
-                if (ImGui::MenuItem("Clear Recent"))
-                    { m_recent_files.clear(); save_preferences(); }
-                ImGui::EndMenu();
-            }
-            if (ImGui::MenuItem("Save", "Cmd+S"))
-                save_graph();
-            if (ImGui::MenuItem("Save As...", "Cmd+Shift+S"))
-                save_graph_as();
-            ImGui::Separator();
-            if (ImGui::MenuItem("Quit"))
-                request_quit();
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Edit")) {
-            auto& graph = m_generator.graph();
-            if (ImGui::MenuItem("Undo", "Cmd+Z", false, m_history.can_undo())) {
-                m_history.undo(graph);
-                m_positioned_nodes.clear();
-                rebuild_links_from_graph();
-                m_generator.evaluate();
-            }
-            if (ImGui::MenuItem("Redo", "Cmd+Shift+Z", false, m_history.can_redo())) {
-                m_history.redo(graph);
-                m_positioned_nodes.clear();
-                rebuild_links_from_graph();
-                m_generator.evaluate();
-            }
-            ImGui::Separator();
-            ed::SetCurrentEditor(m_node_editor_context);
-            bool has_selection = ed::GetSelectedObjectCount() > 0;
-            ed::SetCurrentEditor(nullptr);
-            if (ImGui::MenuItem("Cut", "Cmd+X", false, has_selection)) {
-                copy_selection();
-                ImGui::GetIO().AddKeyEvent(ImGuiKey_Delete, true);
-            }
-            if (ImGui::MenuItem("Copy", "Cmd+C", false, has_selection))
-                copy_selection();
-            if (ImGui::MenuItem("Paste", "Cmd+V"))
-                paste_clipboard();
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Help")) {
-            if (ImGui::MenuItem("History", nullptr, m_show_history_panel)) {
-                m_show_history_panel = !m_show_history_panel;
-                save_preferences();
-            }
-            if (ImGui::MenuItem("ImGui Demo", nullptr, m_show_demo_window))
-                m_show_demo_window = !m_show_demo_window;
-            ImGui::Separator();
-            ImGui::MenuItem("About Level Synth");
-            ImGui::EndMenu();
-        }
-        ImGui::EndPopup();
-    }
-
-    ImGui::SameLine();
-    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-    ImGui::SameLine();
+        ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoDocking);
 
     // Theme toggle
     const char* theme_label = m_dark_theme ? phosphor::PH_MOON : phosphor::PH_SUN;
@@ -864,7 +915,9 @@ void editor::draw_history_panel() {
     if (!m_show_history_panel) return;
 
     ImGui::SetNextWindowSize(ImVec2(280, 360), ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin("History", &m_show_history_panel)) {
+    ImGuiWindow* history_win = ImGui::FindWindowByName("History");
+    bool* history_open = (history_win && history_win->DockNode != nullptr) ? nullptr : &m_show_history_panel;
+    if (!ImGui::Begin("History", history_open)) {
         ImGui::End();
         return;
     }
@@ -1291,6 +1344,8 @@ void editor::set_dark_theme() {
 }
 
 void editor::draw_details_panel() {
+    if (!m_show_details_panel) return;
+
     ed::SetCurrentEditor(m_node_editor_context);
     int total = ed::GetSelectedObjectCount();
     std::vector<ed::NodeId> selected(total);
@@ -1306,15 +1361,9 @@ void editor::draw_details_panel() {
     //    ImVec2(panel_width, 0.0f),
     //    ImVec2(panel_width, FLT_MAX));
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::Begin("##details", nullptr
-        // ,
-        // ImGuiWindowFlags_NoTitleBar  |
-        // ImGuiWindowFlags_NoMove      |
-        // ImGuiWindowFlags_NoScrollbar |
-        //ImGuiWindowFlags_AlwaysAutoResize
-        );
-    ImGui::PopStyleVar();
+    ImGuiWindow* details_win = ImGui::FindWindowByName("Details");
+    bool* details_open = (details_win && details_win->DockNode != nullptr) ? nullptr : &m_show_details_panel;
+    ImGui::Begin("Details", details_open);
 
     ImGui::TextUnformatted("Details");
     ImGui::Separator();
@@ -1349,6 +1398,126 @@ void editor::draw_details_panel() {
         ImGui::TextDisabled("%d nodes selected", node_count);
     }
 
+    ImGui::End();
+}
+
+void editor::draw_node_editor_style_editor() {
+    ImGui::SetNextWindowSize(ImVec2(360, 480), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Node Editor Style", &m_show_node_editor_style_window)) {
+        ImGui::End();
+        return;
+    }
+
+    ed::SetCurrentEditor(m_node_editor_context);
+    ed::Style& s = ed::GetStyle();
+
+    if (ImGui::Button("Reset to Defaults"))
+        s = ed::Style();
+    ImGui::SameLine();
+    if (ImGui::Button("Copy to Clipboard")) {
+        std::ostringstream out;
+        out << "ed::Style& edStyle = ed::GetStyle();\n";
+        out << "edStyle.NodePadding              = ImVec4("
+            << s.NodePadding.x << "f, " << s.NodePadding.y << "f, "
+            << s.NodePadding.z << "f, " << s.NodePadding.w << "f);\n";
+        auto fline = [&](const char* name, float v) {
+            out << "edStyle." << name;
+            for (int pad = 25 - static_cast<int>(std::strlen(name)); pad > 0; --pad) out << ' ';
+            out << "= " << v << "f;\n";
+        };
+        auto v2line = [&](const char* name, ImVec2 v) {
+            out << "edStyle." << name;
+            for (int pad = 25 - static_cast<int>(std::strlen(name)); pad > 0; --pad) out << ' ';
+            out << "= ImVec2(" << v.x << "f, " << v.y << "f);\n";
+        };
+        fline("NodeRounding",             s.NodeRounding);
+        fline("NodeBorderWidth",          s.NodeBorderWidth);
+        fline("HoveredNodeBorderWidth",   s.HoveredNodeBorderWidth);
+        fline("HoverNodeBorderOffset",    s.HoverNodeBorderOffset);
+        fline("SelectedNodeBorderWidth",  s.SelectedNodeBorderWidth);
+        fline("SelectedNodeBorderOffset", s.SelectedNodeBorderOffset);
+        fline("PinRounding",              s.PinRounding);
+        fline("PinBorderWidth",           s.PinBorderWidth);
+        fline("PinRadius",                s.PinRadius);
+        fline("PinArrowSize",             s.PinArrowSize);
+        fline("PinArrowWidth",            s.PinArrowWidth);
+        fline("LinkStrength",             s.LinkStrength);
+        v2line("SourceDirection",         s.SourceDirection);
+        v2line("TargetDirection",         s.TargetDirection);
+        fline("ScrollDuration",           s.ScrollDuration);
+        fline("FlowMarkerDistance",       s.FlowMarkerDistance);
+        fline("FlowSpeed",                s.FlowSpeed);
+        fline("FlowDuration",             s.FlowDuration);
+        fline("GroupRounding",            s.GroupRounding);
+        fline("GroupBorderWidth",         s.GroupBorderWidth);
+        fline("HighlightConnectedLinks",  s.HighlightConnectedLinks);
+        fline("SnapLinkToPinDir",         s.SnapLinkToPinDir);
+        out << '\n';
+        for (int i = 0; i < ed::StyleColor_Count; ++i) {
+            const char* name = ed::GetStyleColorName(static_cast<ed::StyleColor>(i));
+            ImVec4 c = s.Colors[i];
+            int r = static_cast<int>(c.x * 255.0f + 0.5f);
+            int g = static_cast<int>(c.y * 255.0f + 0.5f);
+            int b = static_cast<int>(c.z * 255.0f + 0.5f);
+            int a = static_cast<int>(c.w * 255.0f + 0.5f);
+            out << "edStyle.Colors[StyleColor_" << name << "]";
+            for (int pad = 24 - static_cast<int>(std::strlen(name)); pad > 0; --pad) out << ' ';
+            out << "= ImColor(" << r << ", " << g << ", " << b << ", " << a << ");\n";
+        }
+        ImGui::SetClipboardText(out.str().c_str());
+    }
+    ImGui::SameLine();
+    static ImGuiTextFilter filter;
+    filter.Draw("##filter", ImGui::GetContentRegionAvail().x - 4.0f);
+
+    if (ImGui::BeginTabBar("##tabs")) {
+        if (ImGui::BeginTabItem("Colors")) {
+            ImGui::BeginChild("##colors_scroll", ImVec2(0, 0), ImGuiChildFlags_None);
+            for (int i = 0; i < ed::StyleColor_Count; ++i) {
+                const char* name = ed::GetStyleColorName(static_cast<ed::StyleColor>(i));
+                if (!filter.PassFilter(name)) continue;
+                ImGui::PushID(i);
+                ImGui::ColorEdit4("##color", &s.Colors[i].x,
+                    ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
+                ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+                ImGui::TextUnformatted(name);
+                ImGui::PopID();
+            }
+            ImGui::EndChild();
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Sizes")) {
+            ImGui::BeginChild("##sizes_scroll", ImVec2(0, 0), ImGuiChildFlags_None);
+            ImGui::DragFloat4("NodePadding",              &s.NodePadding.x,        0.1f, 0.0f, 40.0f);
+            ImGui::DragFloat ("NodeRounding",             &s.NodeRounding,         0.1f, 0.0f, 40.0f);
+            ImGui::DragFloat ("NodeBorderWidth",          &s.NodeBorderWidth,      0.1f, 0.0f, 10.0f);
+            ImGui::DragFloat ("HoveredNodeBorderWidth",   &s.HoveredNodeBorderWidth,0.1f,0.0f, 10.0f);
+            ImGui::DragFloat ("HoverNodeBorderOffset",    &s.HoverNodeBorderOffset,0.1f,-10.0f,10.0f);
+            ImGui::DragFloat ("SelectedNodeBorderWidth",  &s.SelectedNodeBorderWidth,0.1f,0.0f,10.0f);
+            ImGui::DragFloat ("SelectedNodeBorderOffset", &s.SelectedNodeBorderOffset,0.1f,-10.0f,10.0f);
+            ImGui::DragFloat ("PinRounding",              &s.PinRounding,          0.1f, 0.0f, 40.0f);
+            ImGui::DragFloat ("PinBorderWidth",           &s.PinBorderWidth,       0.1f, 0.0f, 10.0f);
+            ImGui::DragFloat ("PinRadius",                &s.PinRadius,            0.1f, 0.0f, 40.0f);
+            ImGui::DragFloat ("PinArrowSize",             &s.PinArrowSize,         0.1f, 0.0f, 40.0f);
+            ImGui::DragFloat ("PinArrowWidth",            &s.PinArrowWidth,        0.1f, 0.0f, 40.0f);
+            ImGui::DragFloat ("LinkStrength",             &s.LinkStrength,         1.0f, 0.0f, 500.0f);
+            ImGui::DragFloat2("SourceDirection",          &s.SourceDirection.x,    0.01f,-1.0f, 1.0f);
+            ImGui::DragFloat2("TargetDirection",          &s.TargetDirection.x,    0.01f,-1.0f, 1.0f);
+            ImGui::DragFloat ("ScrollDuration",           &s.ScrollDuration,       0.01f, 0.0f, 5.0f);
+            ImGui::DragFloat ("FlowMarkerDistance",       &s.FlowMarkerDistance,   0.5f, 0.0f, 200.0f);
+            ImGui::DragFloat ("FlowSpeed",                &s.FlowSpeed,            1.0f, 0.0f, 1000.0f);
+            ImGui::DragFloat ("FlowDuration",             &s.FlowDuration,         0.05f, 0.0f, 10.0f);
+            ImGui::DragFloat ("GroupRounding",            &s.GroupRounding,        0.1f, 0.0f, 40.0f);
+            ImGui::DragFloat ("GroupBorderWidth",         &s.GroupBorderWidth,     0.1f, 0.0f, 10.0f);
+            ImGui::DragFloat ("HighlightConnectedLinks",  &s.HighlightConnectedLinks,0.1f,0.0f, 1.0f);
+            ImGui::DragFloat ("SnapLinkToPinDir",         &s.SnapLinkToPinDir,     0.1f, 0.0f, 1.0f);
+            ImGui::EndChild();
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+
+    ed::SetCurrentEditor(nullptr);
     ImGui::End();
 }
 
