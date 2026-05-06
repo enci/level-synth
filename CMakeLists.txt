@@ -23,8 +23,8 @@ FetchContent_MakeAvailable(sdl3)
 # Fetch ImGui (shadows branch for node drop shadows)
 FetchContent_Declare(
         imgui
-        GIT_REPOSITORY https://github.com/ocornut/imgui.git
-        GIT_TAG features/shadows
+        GIT_REPOSITORY https://github.com/enci/imgui.git
+        GIT_TAG docking-shadows
 )
 FetchContent_MakeAvailable(imgui)
 

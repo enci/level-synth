@@ -102,7 +102,7 @@ void application::init_imgui() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;
 
     m_imgui_ini_path = m_pref_dir + "imgui.ini";
     io.IniFilename = m_imgui_ini_path.c_str();

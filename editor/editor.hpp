@@ -32,9 +32,11 @@ public:
     bool quit_confirmed() const { return m_quit_confirmed; }
 
 private:
+    void draw_menu_bar();
     void draw_node_editor();
     void draw_toolbar();
     void draw_details_panel();
+    void draw_node_editor_style_editor();
 
     void set_light_theme();
     void set_dark_theme();
@@ -100,6 +102,9 @@ private:
     bool m_dark_theme = true;
     bool m_show_demo_window   = false;
     bool m_show_history_panel = true;
+    bool m_show_details_panel    = true;
+    bool m_show_node_editor_style_window = false;
+    bool m_dockspace_layout_built = false;
     std::filesystem::path m_current_file;
     std::string m_pref_dir;
     std::string m_node_editor_settings_path; // must outlive the editor context
