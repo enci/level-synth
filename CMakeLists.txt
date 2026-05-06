@@ -169,11 +169,20 @@ set(EDITOR_SOURCES
         ${EDITOR_DIR}/editor.cpp
 )
 
+if(APPLE)
+        list(APPEND EDITOR_SOURCES ${EDITOR_DIR}/platform_titlebar_mac.mm)
+elseif(WIN32)
+        list(APPEND EDITOR_SOURCES ${EDITOR_DIR}/platform_titlebar_win.cpp)
+else()
+        list(APPEND EDITOR_SOURCES ${EDITOR_DIR}/platform_titlebar_other.cpp)
+endif()
+
 set(EDITOR_HEADERS
         ${EDITOR_DIR}/application.hpp
         ${EDITOR_DIR}/editor.hpp
         ${EDITOR_DIR}/imgui_visitor.hpp
         ${EDITOR_DIR}/nodes/node_colors.hpp
+        ${EDITOR_DIR}/platform_titlebar.hpp
         library/level_synth/node.hpp
         library/level_synth/eval_context.hpp
 )
@@ -208,6 +217,12 @@ target_link_libraries(level_synth_editor PRIVATE
         freetype
         portable_file_dialogs
 )
+
+if(APPLE)
+        target_link_libraries(level_synth_editor PRIVATE "-framework Cocoa")
+elseif(WIN32)
+        target_link_libraries(level_synth_editor PRIVATE dwmapi)
+endif()
 
 # ---- Tests ----
 FetchContent_Declare(

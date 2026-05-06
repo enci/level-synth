@@ -31,6 +31,8 @@ public:
     /// Returns true once the user has confirmed quitting (or the graph is clean).
     bool quit_confirmed() const { return m_quit_confirmed; }
 
+    bool dark_theme() const { return m_dark_theme; }
+
 private:
     void draw_menu_bar();
     void draw_node_editor();

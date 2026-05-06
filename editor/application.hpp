@@ -40,5 +40,9 @@ private:
     static constexpr int k_cooldown_frames = 3;
     static Uint32 s_redraw_event_type;
 
+    // Cached titlebar state, so we only push to the OS when something changes.
+    float m_titlebar_r = -1.0f, m_titlebar_g = 0.0f, m_titlebar_b = 0.0f;
+    bool  m_titlebar_dark = false;
+
     std::unique_ptr<editor> m_editor;
 };
