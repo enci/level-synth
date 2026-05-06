@@ -5,6 +5,7 @@
 #include "backends/imgui_impl_sdlrenderer3.h"
 #include "misc/freetype/imgui_freetype.h"
 #include "phosphor_icons.hpp"
+#include "platform_titlebar.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -194,6 +195,17 @@ void application::update() {
     if (title != m_title) {
         m_title = title;
         SDL_SetWindowTitle(m_window, m_title.c_str());
+    }
+
+    // Tint the OS title bar to match the current ImGui menu-bar color so
+    // it blends with the app. Only push to the OS when something changed.
+    const ImVec4& bg = ImGui::GetStyle().Colors[ImGuiCol_MenuBarBg];
+    bool dark = m_editor->dark_theme();
+    if (bg.x != m_titlebar_r || bg.y != m_titlebar_g || bg.z != m_titlebar_b ||
+        dark != m_titlebar_dark) {
+        m_titlebar_r = bg.x; m_titlebar_g = bg.y; m_titlebar_b = bg.z;
+        m_titlebar_dark = dark;
+        platform::set_titlebar(m_window, bg.x, bg.y, bg.z, dark);
     }
 }
 
