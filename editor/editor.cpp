@@ -62,19 +62,32 @@ void editor::init(const std::string& pref_dir) {
     m_link_to_wire[m_next_link_id++] = { noise_id,  "grid", ca_id,    "input"  };
     m_link_to_wire[m_next_link_id++] = { ca_id,  "output", out_id,    "value"  };
 
-    // m_colors[editor_colors::Color_PinNumber]           = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
-    // m_colors[editor_colors::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
-    // m_colors[editor_colors::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
-    // m_colors[editor_colors::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
-    // m_colors[editor_colors::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
-    // m_colors[editor_colors::Color_ToolbarBg]           = ImVec4(0.95f, 0.95f, 0.96f, 0.92f);
-    // m_colors[editor_colors::Color_ToolbarBorder]       = ImVec4(0.70f, 0.70f, 0.72f, 0.60f);
-    // m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.80f, 0.80f, 0.82f, 0.60f);
-    // m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.70f, 0.70f, 0.72f, 0.80f);
 
     m_generator.set_seed(42);
     m_generator.evaluate();
     load_preferences();
+    resolve_theme();
+    apply_theme();
+}
+
+void editor::resolve_theme() {
+    switch (m_theme_mode) {
+        case theme_mode::light: m_dark_theme = false; break;
+        case theme_mode::dark:  m_dark_theme = true;  break;
+        case theme_mode::system: {
+            SDL_SystemTheme t = SDL_GetSystemTheme();
+            if (t != SDL_SYSTEM_THEME_UNKNOWN)
+                m_dark_theme = (t == SDL_SYSTEM_THEME_DARK);
+            break;
+        }
+    }
+}
+
+void editor::on_system_theme_changed(bool dark) {
+    if (m_theme_mode != theme_mode::system) return;
+    if (m_dark_theme == dark) return;
+    m_dark_theme = dark;
+    apply_theme();
 }
 
 void editor::draw() {
@@ -115,6 +128,7 @@ void editor::draw() {
     }
 
     draw_menu_bar();
+    draw_status_bar();
 
     ImGuiViewport* vp = ImGui::GetMainViewport();
 
@@ -158,7 +172,6 @@ void editor::draw() {
     ImGui::End();
     ImGui::PopStyleVar();
 
-    draw_toolbar();
     draw_details_panel();
 
     if (m_show_demo_window)
@@ -615,6 +628,8 @@ void editor::draw_menu_bar() {
         }
         if (ImGui::MenuItem("Node Editor Style", nullptr, m_show_node_editor_style_window))
             m_show_node_editor_style_window = !m_show_node_editor_style_window;
+        if (ImGui::MenuItem("Status Bar", nullptr, m_show_status_bar))
+            m_show_status_bar = !m_show_status_bar;
         if (ImGui::MenuItem("ImGui Demo", nullptr, m_show_demo_window))
             m_show_demo_window = !m_show_demo_window;
         ImGui::Separator();
@@ -631,118 +646,60 @@ void editor::draw_menu_bar() {
         ImGui::EndMenu();
     }
 
-    ImGui::EndMainMenuBar();
-}
+    // ===== Inline tools (formerly the floating toolbar) =====
+    // Use MenuItem (not Button) so heights match the dropdown menu items —
+    // Button adds FramePadding on top of text height; MenuItem in a horizontal
+    // menu bar uses text height only, like BeginMenu does.
+    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
 
-void editor::draw_toolbar() {
-    auto& io = ImGui::GetIO();
-    const float scale = 1.0f;
-
-    const float toolbar_height = 36.0f * scale;
-    const float button_size = 24.0f * scale;
-
-    float toolbar_width = 500.0f * scale;
-    float toolbar_x = (io.DisplaySize.x - toolbar_width) * 0.5f;
-    float toolbar_y = 12.0f * scale;
-
-    draw_window_shadow(ImVec2(toolbar_x, toolbar_y), ImVec2(toolbar_width, toolbar_height));
-    ImGui::SetNextWindowPos(ImVec2(toolbar_x, toolbar_y), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(toolbar_width, toolbar_height), ImGuiCond_Always);
-
-    ImGui::Begin("##toolbar", nullptr,
-        ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_NoScrollWithMouse |
-        ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_NoDocking);
-
-    // Theme toggle
     const char* theme_label = m_dark_theme ? phosphor::PH_MOON : phosphor::PH_SUN;
-    if (ImGui::Button(theme_label, ImVec2(button_size, button_size))) {
+    if (ImGui::MenuItem(theme_label)) {
         m_dark_theme = !m_dark_theme;
-        // apply_theme();
+        m_theme_mode = m_dark_theme ? theme_mode::dark : theme_mode::light;
+        apply_theme();
+        save_preferences();
     }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Toggle theme");
+        ImGui::SetTooltip(m_theme_mode == theme_mode::system
+            ? "Toggle theme (currently following OS)" : "Toggle theme");
 
-    ImGui::SameLine();
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-    ImGui::SameLine();
 
-    // Zoom controls
     ed::SetCurrentEditor(m_node_editor_context);
     float inv_scale = ed::GetCurrentZoom();
-
-    if (ImGui::Button(phosphor::PH_MAGNIFYING_GLASS_MINUS, ImVec2(button_size, button_size)))
+    if (ImGui::MenuItem(phosphor::PH_MAGNIFYING_GLASS_MINUS))
         ed::SetCurrentZoom(inv_scale * 1.25f);
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Zoom out");
-
-    ImGui::SameLine();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Zoom out");
 
     char zoom_buf[16];
     snprintf(zoom_buf, sizeof(zoom_buf), "%d%%", (int)(100.0f / inv_scale + 0.5f));
-    if (ImGui::Button(zoom_buf, ImVec2(0, button_size)))
+    if (ImGui::MenuItem(zoom_buf))
         ed::SetCurrentZoom(1.0f);
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Reset zoom to 100%%");
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Reset zoom to 100%%");
 
-    ImGui::SameLine();
-
-    if (ImGui::Button(phosphor::PH_MAGNIFYING_GLASS_PLUS, ImVec2(button_size, button_size)))
+    if (ImGui::MenuItem(phosphor::PH_MAGNIFYING_GLASS_PLUS))
         ed::SetCurrentZoom(inv_scale * 0.8f);
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Zoom in");
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Zoom in");
 
-    ImGui::SameLine();
-
-    if (ImGui::Button(phosphor::PH_FRAME_CORNERS, ImVec2(button_size, button_size)))
+    if (ImGui::MenuItem(phosphor::PH_FRAME_CORNERS))
         ed::NavigateToContentCenter();
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Fit to content");
-
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Fit to content");
     ed::SetCurrentEditor(nullptr);
 
-    ImGui::SameLine();
-
-    // Seed input + Evaluate button
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-    ImGui::SameLine();
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * scale);
+
     ImGui::TextUnformatted("Seed");
-    ImGui::SameLine();
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 4.0f * scale);
-    ImGui::SetNextItemWidth(64.0f * scale);
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 4.0f);
     int seed = m_generator.seed();
     if (ImGui::DragInt("##seed", &seed))
         m_generator.set_seed(seed);
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Global generation seed");
-    ImGui::SameLine();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Global generation seed");
 
-    if (ImGui::Button(phosphor::PH_PLAY, ImVec2(button_size, button_size)))
+    if (ImGui::MenuItem(phosphor::PH_PLAY))
         m_generator.evaluate();
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Evaluate graph");
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Evaluate graph");
 
-    ImGui::SameLine();
-
-    if (ImGui::Button(phosphor::PH_APP_WINDOW, ImVec2(button_size, button_size)))
-        m_show_demo_window = !m_show_demo_window;
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("ImGui demo");
-
-    ImGui::SameLine();
-    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-    ImGui::SameLine();
-
-    // FPS display
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f * scale);
-    ImGui::TextDisabled("%.0f fps", io.Framerate);
-
-    ImGui::End();
+    ImGui::EndMainMenuBar();
 }
 
 static bool write_file_atomic(const std::filesystem::path& path, const std::string& data) {
@@ -873,7 +830,10 @@ void editor::load_preferences() {
     if (!f) return;
     try {
         auto j = nlohmann::json::parse(f);
-        m_dark_theme         = j.value("theme", "dark") == "dark";
+        const std::string mode = j.value("theme", "system");
+        if      (mode == "light") m_theme_mode = theme_mode::light;
+        else if (mode == "dark")  m_theme_mode = theme_mode::dark;
+        else                      m_theme_mode = theme_mode::system;
         m_show_history_panel = j.value("show_history_panel", true);
         for (const auto& p : j.value("recent_files", nlohmann::json::array()))
             m_recent_files.push_back(p.get<std::string>());
@@ -882,9 +842,12 @@ void editor::load_preferences() {
 
 void editor::save_preferences() {
     nlohmann::json j;
-    j["theme"]               = m_dark_theme ? "dark" : "light";
-    j["show_history_panel"]  = m_show_history_panel;
-    j["recent_files"]        = m_recent_files;
+    const char* mode = "system";
+    if      (m_theme_mode == theme_mode::light) mode = "light";
+    else if (m_theme_mode == theme_mode::dark)  mode = "dark";
+    j["theme"]              = mode;
+    j["show_history_panel"] = m_show_history_panel;
+    j["recent_files"]       = m_recent_files;
     std::ofstream f(m_pref_dir + "preferences.json");
     if (f) f << j.dump(2);
 }
@@ -1095,7 +1058,6 @@ void editor::draw_unsaved_modal() {
 }
 
 void editor::set_node_editor_style() {
-#if 0
     ed::Style& edStyle = ed::GetStyle();
     edStyle.NodePadding              = ImVec4(8, 8, 8, 8);
     edStyle.NodeRounding             = 12.0f;
@@ -1123,7 +1085,6 @@ void editor::set_node_editor_style() {
     edStyle.GroupBorderWidth         = 1.0f;
     edStyle.HighlightConnectedLinks  = 0.0f;
     edStyle.SnapLinkToPinDir         = 0.0f;
-#endif
 }
 
 void editor::apply_theme() {
@@ -1136,7 +1097,6 @@ void editor::apply_theme() {
 }
 
 void editor::set_light_theme() {
-#if 0
     auto& style = ImGui::GetStyle();
     style.WindowBorderSize = 0.0f;
     style.FrameBorderSize = 0.0f;
@@ -1202,15 +1162,15 @@ void editor::set_light_theme() {
     colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
     colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
 
-    // m_colors[editor_colors::Color_PinNumber]           = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
-    // m_colors[editor_colors::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
-    // m_colors[editor_colors::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
-    // m_colors[editor_colors::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
-    // m_colors[editor_colors::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
-    // m_colors[editor_colors::Color_ToolbarBg]           = ImVec4(0.95f, 0.95f, 0.96f, 0.92f);
-    // m_colors[editor_colors::Color_ToolbarBorder]       = ImVec4(0.70f, 0.70f, 0.72f, 0.60f);
-    // m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.80f, 0.80f, 0.82f, 0.60f);
-    // m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.70f, 0.70f, 0.72f, 0.80f);
+    m_colors[editor_colors::Color_PinNumber]           = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
+    m_colors[editor_colors::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
+    m_colors[editor_colors::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
+    m_colors[editor_colors::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
+    m_colors[editor_colors::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
+    m_colors[editor_colors::Color_ToolbarBg]           = ImVec4(0.95f, 0.95f, 0.96f, 0.92f);
+    m_colors[editor_colors::Color_ToolbarBorder]       = ImVec4(0.70f, 0.70f, 0.72f, 0.60f);
+    m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.80f, 0.80f, 0.82f, 0.60f);
+    m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.70f, 0.70f, 0.72f, 0.80f);
 
     set_node_editor_style();
 
@@ -1236,11 +1196,9 @@ void editor::set_light_theme() {
     edStyle.Colors[StyleColor_FlowMarker]          = ImColor(255, 128, 64, 255);
     edStyle.Colors[StyleColor_GroupBg]             = ImColor(0, 0, 0, 24);
     edStyle.Colors[StyleColor_GroupBorder]         = ImColor(0, 0, 0, 32);
-#endif
 }
 
 void editor::set_dark_theme() {
-#if 0
     auto& style = ImGui::GetStyle();
     style.WindowBorderSize = 0.0f;
     style.FrameBorderSize = 0.0f;
@@ -1306,15 +1264,15 @@ void editor::set_dark_theme() {
     colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
     colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
 
-    // m_colors[editor_colors::Color_PinNumber]           = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
-    // m_colors[editor_colors::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
-    // m_colors[editor_colors::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
-    // m_colors[editor_colors::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
-    // m_colors[editor_colors::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
-    // m_colors[editor_colors::Color_ToolbarBg]           = ImVec4(0.18f, 0.18f, 0.19f, 0.92f);
-    // m_colors[editor_colors::Color_ToolbarBorder]       = ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
-    // m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
-    // m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.35f, 0.35f, 0.37f, 0.80f);
+    m_colors[editor_colors::Color_PinNumber]           = ImVec4(0.25f, 0.75f, 0.85f, 1.0f);
+    m_colors[editor_colors::Color_PinGrid]             = ImVec4(0.65f, 0.40f, 0.85f, 1.0f);
+    m_colors[editor_colors::Color_HeaderInput]         = ImVec4(0.30f, 0.60f, 0.30f, 1.0f);
+    m_colors[editor_colors::Color_HeaderProcess]       = ImVec4(0.75f, 0.45f, 0.20f, 1.0f);
+    m_colors[editor_colors::Color_HeaderOutput]        = ImVec4(0.30f, 0.45f, 0.70f, 1.0f);
+    m_colors[editor_colors::Color_ToolbarBg]           = ImVec4(0.18f, 0.18f, 0.19f, 0.92f);
+    m_colors[editor_colors::Color_ToolbarBorder]       = ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
+    m_colors[editor_colors::Color_ToolbarButtonHovered]= ImVec4(0.30f, 0.30f, 0.32f, 0.60f);
+    m_colors[editor_colors::Color_ToolbarButtonActive] = ImVec4(0.35f, 0.35f, 0.37f, 0.80f);
 
     set_node_editor_style();
 
@@ -1340,7 +1298,6 @@ void editor::set_dark_theme() {
     edStyle.Colors[StyleColor_FlowMarker]          = ImColor(255, 128, 64, 255);
     edStyle.Colors[StyleColor_GroupBg]             = ImColor(0, 0, 0, 120);
     edStyle.Colors[StyleColor_GroupBorder]         = ImColor(255, 255, 255, 24);
-#endif
 }
 
 void editor::draw_details_panel() {
@@ -1398,6 +1355,39 @@ void editor::draw_details_panel() {
         ImGui::TextDisabled("%d nodes selected", node_count);
     }
 
+    ImGui::End();
+}
+
+void editor::draw_status_bar() {
+    if (!m_show_status_bar) return;
+
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar;
+    if (ImGui::BeginViewportSideBar(
+            "##StatusBar", nullptr, ImGuiDir_Down, ImGui::GetFrameHeight(), flags)) {
+        if (ImGui::BeginMenuBar()) {
+            // Selection takes precedence; otherwise show graph stats.
+            ed::SetCurrentEditor(m_node_editor_context);
+            int selected = ed::GetSelectedObjectCount();
+            ed::SetCurrentEditor(nullptr);
+
+            if (selected > 0) {
+                ImGui::Text("%d selected", selected);
+            } else {
+                int n = static_cast<int>(m_generator.graph().node_ids().size());
+                int w = static_cast<int>(m_generator.graph().wires().size());
+                ImGui::Text("%d nodes  %s  %d wires", n, "\xc2\xb7", w);
+            }
+
+            char fps_buf[32];
+            snprintf(fps_buf, sizeof(fps_buf), "%.0f fps", ImGui::GetIO().Framerate);
+            float fps_w = ImGui::CalcTextSize(fps_buf).x;
+            ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - fps_w - 4.0f);
+            ImGui::TextDisabled("%s", fps_buf);
+
+            ImGui::EndMenuBar();
+        }
+    }
     ImGui::End();
 }
 
@@ -1521,15 +1511,3 @@ void editor::draw_node_editor_style_editor() {
     ImGui::End();
 }
 
-void editor::draw_window_shadow(ImVec2 pos, ImVec2 size, float rounding) {
-    ImDrawList* bg = ImGui::GetBackgroundDrawList();
-    const float offset = 8.0f;
-    for (int i = 4; i >= 1; i--) {
-        float spread = offset * static_cast<float>(i) * 0.35f;
-        int   alpha  = static_cast<int>(255 * 0.055f * static_cast<float>(5 - i));
-        bg->AddRectFilled(
-            ImVec2(pos.x - spread + offset, pos.y - spread + offset),
-            ImVec2(pos.x + size.x + spread + offset, pos.y + size.y + spread + offset),
-            IM_COL32(0, 0, 0, alpha), rounding + spread);
-    }
-}

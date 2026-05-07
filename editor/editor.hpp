@@ -33,18 +33,22 @@ public:
 
     bool dark_theme() const { return m_dark_theme; }
 
+    /// Called by the application when the OS theme changes. If the user has
+    /// not manually overridden the theme (m_follow_system_theme), apply it.
+    void on_system_theme_changed(bool dark);
+
 private:
     void draw_menu_bar();
     void draw_node_editor();
-    void draw_toolbar();
     void draw_details_panel();
     void draw_node_editor_style_editor();
+    void draw_status_bar();
 
     void set_light_theme();
     void set_dark_theme();
     void set_node_editor_style();
     void apply_theme();
-    void draw_window_shadow(ImVec2 pos, ImVec2 size, float rounding = 10.0f);
+    void resolve_theme();
 
     void new_graph();
     void load_graph();                                    // opens file dialog
@@ -100,12 +104,16 @@ private:
     std::string m_drag_before_json;
     std::string m_drag_before_full_json;
 
+    enum class theme_mode { system, light, dark };
+
     ImVec4 m_colors[editor_colors::Color_COUNT];
-    bool m_dark_theme = true;
+    theme_mode m_theme_mode = theme_mode::system;
+    bool m_dark_theme = true;  // resolved cache; m_theme_mode is the source of truth
     bool m_show_demo_window   = false;
     bool m_show_history_panel = true;
     bool m_show_details_panel    = true;
     bool m_show_node_editor_style_window = false;
+    bool m_show_status_bar = true;
     bool m_dockspace_layout_built = false;
     std::filesystem::path m_current_file;
     std::string m_pref_dir;

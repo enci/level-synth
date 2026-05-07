@@ -115,17 +115,19 @@ void application::init_imgui() {
     io.Fonts->SetFontLoader(loader);
     io.Fonts->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_ForceAutoHint;
 
-    constexpr float k_font_size = 16.0f;
-    ImFontConfig config;
-    config.OversampleH = 8;
-    config.OversampleV = 8;
-    io.Fonts->AddFontFromFileTTF("../resources/selawk.ttf", k_font_size, &config);
+    constexpr float k_font_size = 13.5f;
+    {
+        ImFontConfig config;
+        config.OversampleH = 8;
+        config.OversampleV = 8;
+        io.Fonts->AddFontFromFileTTF("../resources/Roboto-SemiBold.ttf", k_font_size, &config);
+    }
 
     {
         ImFontConfig icon_config;
         icon_config.MergeMode = true;
-        icon_config.OversampleH = 1;
-        icon_config.OversampleV = 1;
+        icon_config.OversampleH = 8;
+        icon_config.OversampleV = 8;
         static const ImWchar phosphor_ranges[] = {
             (ImWchar)phosphor::PH_RANGE_BEGIN, (ImWchar)phosphor::PH_RANGE_END, 0
         };
@@ -178,6 +180,12 @@ void application::dispatch_event(const SDL_Event& event) {
     if (event.type == SDL_EVENT_WINDOW_RESIZED) {
         m_width = event.window.data1;
         m_height = event.window.data2;
+    }
+
+    if (event.type == SDL_EVENT_SYSTEM_THEME_CHANGED) {
+        SDL_SystemTheme t = SDL_GetSystemTheme();
+        if (t != SDL_SYSTEM_THEME_UNKNOWN)
+            m_editor->on_system_theme_changed(t == SDL_SYSTEM_THEME_DARK);
     }
 }
 
