@@ -113,9 +113,9 @@ void application::init_imgui() {
 
     const auto* loader = ImGuiFreeType::GetFontLoader();
     io.Fonts->SetFontLoader(loader);
-    io.Fonts->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_ForceAutoHint;
+    // io.Fonts->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_ForceAutoHint;
 
-    constexpr float k_font_size = 13.5f;
+    constexpr float k_font_size = 16.0f;
     {
         ImFontConfig config;
         config.OversampleH = 8;

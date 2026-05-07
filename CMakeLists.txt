@@ -95,6 +95,7 @@ set(LIBRARY_SOURCES
         library/level_synth/node_graph.cpp
         library/level_synth/json_visitor.cpp
         library/level_synth/json_visitor.hpp
+        library/level_synth/tag_registry.cpp
 )
 
 set(LIBRARY_HEADERS
@@ -111,11 +112,14 @@ set(LIBRARY_HEADERS
         library/level_synth/nodes/node_output_grid.hpp
         library/level_synth/nodes/node_output_number.hpp
         library/level_synth/nodes/node_noise_grid.hpp
-        library/level_synth/grid_base.hpp
+        library/level_synth/grid.hpp
         library/level_synth/node_graph.hpp
         library/level_synth/node_visitor.hpp
         library/level_synth/json_visitor.cpp
         library/level_synth/json_visitor.hpp
+        library/level_synth/tag.hpp
+        library/level_synth/tag.hpp
+        library/level_synth/tag_registry.hpp
 )
 
 add_library(level_synth_library STATIC
