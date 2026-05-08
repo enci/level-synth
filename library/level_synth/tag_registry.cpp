@@ -1,6 +1,7 @@
 #include "tag_registry.hpp"
 
 #include <ranges>
+#include <vector>
 
 using namespace std;
 
