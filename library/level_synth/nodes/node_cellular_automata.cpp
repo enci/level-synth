@@ -31,7 +31,7 @@ static int count_neighbors(const grid& grid, int x, int y) {
             int nx = x + dx;
             int ny = y + dy;
             if (grid.in_bounds(nx, ny)) {
-                if (grid.get(nx, ny) != 0) count++;
+                if (grid.get(nx, ny) != tag::numeric(0)) count++;
             } else {
                 // Out-of-bounds counts as alive (wall border)
                 count++;
@@ -60,12 +60,12 @@ bool node_cellular_automata::evaluate(eval_context& ctx) {
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 int neighbors = count_neighbors(prev, x, y);
-                int alive = prev.get(x, y) != 0;
+                int alive = prev.get(x, y) != tag::numeric(0);
 
                 if (!alive && neighbors >= m_birth)
-                    output->set(x, y, 1);
+                    output->set(x, y, tag::numeric(1));
                 else if (alive && neighbors < m_death)
-                    output->set(x, y, 0);
+                    output->set(x, y, tag::numeric(0));
             }
         }
     }

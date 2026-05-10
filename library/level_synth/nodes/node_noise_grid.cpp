@@ -39,7 +39,7 @@ bool node_noise_grid::evaluate(eval_context& ctx) {
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
             if (dist(rng) < m_density)
-                gr->set(x, y, 1);
+                gr->set(x, y, tag::numeric(1));
         }
     }
 

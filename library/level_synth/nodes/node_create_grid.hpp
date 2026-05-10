@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../node.hpp"
+#include "../tag.hpp"
 
 namespace ls {
 
@@ -13,7 +14,7 @@ public:
 protected:
     double m_width = 64;
     double m_height = 64;
-    int m_fill_value = 0;
+    tag m_fill_value = {};
 };
 
 }

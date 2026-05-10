@@ -373,10 +373,10 @@ void editor::draw_node_editor() {
                     const float cell      = k_preview_w / static_cast<float>(g->width());
                     const float preview_h = cell * static_cast<float>(g->height());
 
-                    int min_v = g->get(0, 0), max_v = g->get(0, 0);
+                    int min_v = g->get(0, 0).value(), max_v = g->get(0, 0).value();
                     for (int py = 0; py < g->height(); py++)
                         for (int px = 0; px < g->width(); px++) {
-                            int cv = g->get(px, py);
+                            int cv = g->get(px, py).value();
                             min_v = std::min(min_v, cv);
                             max_v = std::max(max_v, cv);
                         }
@@ -386,7 +386,7 @@ void editor::draw_node_editor() {
                     ImDrawList* dl = ImGui::GetWindowDrawList();
                     for (int py = 0; py < g->height(); py++) {
                         for (int px = 0; px < g->width(); px++) {
-                            float t = static_cast<float>(g->get(px, py) - min_v)
+                            float t = static_cast<float>(g->get(px, py).value() - min_v)
                                       / static_cast<float>(range);
                             int v = static_cast<int>(t * 210 + 20);
                             ImVec2 p0(origin.x + px * cell,  origin.y + py * cell);

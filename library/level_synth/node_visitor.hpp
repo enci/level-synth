@@ -4,6 +4,7 @@
 #include <string>
 
 #include "vec2.hpp"
+#include "tag.hpp"
 
 namespace ls {
 
@@ -26,6 +27,8 @@ public:
     virtual void visit(std::string_view name, int& v) {}
     virtual void visit(std::string_view name, vec2& v) {}
     virtual void visit(std::string_view name, std::string& v) {}
+    virtual void visit(std::string_view name, tag& t) {}
+
     // virtual void visit(std::string_view name, bool& v) {}
 
     // Extend with additional types as they appear in nodes.
@@ -40,4 +43,4 @@ public:
     // virtual void visit_custom(std::string_view name, const std::function<void()>& draw) {}
 };
 
-} // namespace ls
+}
