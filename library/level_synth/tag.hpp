@@ -55,22 +55,22 @@ struct tag {
 
     constexpr uint64_t raw() const noexcept { return m_raw; }
 
-    // Match semantics:
-    // - Both symbolic: bidirectional subset on bits, with 0 at any level
-    //   acting as a wildcard. Wall matches Wall.Damaged, etc.
-    // - Both numeric: exact equality on the value bits.
+    // Directional "is-a" match: answers "is `cell` an instance of `pattern`?"
+    // - Both symbolic: every bit set in pattern must be set in cell. A 0 at
+    //   any level in pattern acts as a wildcard. So Wall.Damaged matches the
+    //   pattern Wall, but bare Wall does NOT match the pattern Wall.Damaged.
+    // - Both numeric: exact equality.
     // - Mixed mode: always false.
     //
-    // Numerics use equality rather than the subset rule because for ordinary
-    // integer values (e.g., 42 vs 43) bit-subset is almost never the intended
-    // semantics. Use a range predicate elsewhere if you need it.
-    friend constexpr bool match(const tag& a, const tag& b) noexcept {
-        const uint64_t l = a.m_raw;
-        const uint64_t r = b.m_raw;
-        if ((l ^ r) & k_mode_bit) return false; // different modes
-        if (l & k_mode_bit) return l == r;      // both numeric: exact
-        const uint64_t and_ = l & r;            // both symbolic: subset
-        return and_ == l || and_ == r;
+    // Numerics use equality rather than a subset rule because for ordinary
+    // integer values (e.g., 42 vs 43) bit-subset is almost never the
+    // intended semantics. Use a range predicate elsewhere if you need it.
+    friend constexpr bool match(const tag& cell, const tag& pattern) noexcept {
+        const uint64_t s = cell.m_raw;
+        const uint64_t p = pattern.m_raw;
+        if ((s ^ p) & k_mode_bit) return false; // different modes
+        if (s & k_mode_bit) return s == p;      // both numeric: exact
+        return (s & p) == p;                    // cell is-a pattern
     }
 
     friend constexpr bool operator==(const tag& a, const tag& b) noexcept {
@@ -83,4 +83,4 @@ private:
 
 static_assert(sizeof(tag) == 8);
 
-} // namespace ls
+}
