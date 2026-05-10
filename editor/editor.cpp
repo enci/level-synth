@@ -27,6 +27,24 @@
 
 namespace ed = ax::NodeEditor;
 
+namespace {
+    static char s_ph_buf[128];
+
+    // Icon + space + label for menu items.
+    inline const char* ph(const char* icon, const char* label) {
+        snprintf(s_ph_buf, sizeof(s_ph_buf), "%s  %s", icon, label);
+        return s_ph_buf;
+    }
+
+    // Icon + space + name for panel/window titles.
+    // Uses ### so the window ID is stable (same as the bare name),
+    // meaning saved dock layouts survive adding an icon prefix.
+    inline const char* ph_win(const char* icon, const char* name) {
+        snprintf(s_ph_buf, sizeof(s_ph_buf), "%s  %s###%s", icon, name, name);
+        return s_ph_buf;
+    }
+}
+
 editor::~editor() {
     if (m_node_editor_context) {
         ed::DestroyEditor(m_node_editor_context);
@@ -34,8 +52,9 @@ editor::~editor() {
     }
 }
 
-void editor::init(const std::string& pref_dir) {
+void editor::init(const std::string& pref_dir, float ui_scale) {
     m_pref_dir = pref_dir;
+    m_ui_scale = ui_scale;
     m_node_editor_settings_path = m_pref_dir + "node_editor.json";
 
     ax::NodeEditor::Config config;
@@ -277,7 +296,7 @@ void editor::draw_node_editor() {
     }
 
     ed::NodeBuilder builder;
-    const ImVec2 icon_size(16, 16);
+    const ImVec2 icon_size(16 * m_ui_scale, 16 * m_ui_scale);
     auto& reg = ls::node_registry::instance();
 
     // Build set of connected input pins for this frame
@@ -308,7 +327,7 @@ void editor::draw_node_editor() {
         {
             builder.Header(header_color);
                 ImGui::TextUnformatted(entry->display_name.c_str());
-                ImGui::Dummy(ImVec2(80, 0));
+                ImGui::Dummy(ImVec2(80 * m_ui_scale, 0));
             builder.EndHeader();
 
             builder.BeginColumns();
@@ -335,7 +354,7 @@ void editor::draw_node_editor() {
                 }
                 ImGui::EndGroup();
 
-                ImGui::SameLine(0, 20);
+                ImGui::SameLine(0, 20 * m_ui_scale);
 
                 // Output pins (right column)
                 ImGui::BeginGroup();
@@ -369,7 +388,7 @@ void editor::draw_node_editor() {
                     const auto& g = std::get<std::shared_ptr<ls::grid>>(*val);
                     if (!g || g->width() == 0 || g->height() == 0) continue;
 
-                    constexpr float k_preview_w = 150.0f;
+                    const float k_preview_w = 150.0f * m_ui_scale;
                     const float cell      = k_preview_w / static_cast<float>(g->width());
                     const float preview_h = cell * static_cast<float>(g->height());
 
@@ -431,7 +450,7 @@ void editor::draw_node_editor() {
             }
         }
 
-        ed::Link(make_link_id(link_id), from_pin_id, to_pin_id, link_color, 2.0f);
+        ed::Link(make_link_id(link_id), from_pin_id, to_pin_id, link_color, 2.0f * m_ui_scale);
     }
 
     // --- Handle new connections ---
@@ -564,12 +583,12 @@ void editor::draw_menu_bar() {
 
     auto& graph = m_generator.graph();
 
-    if (ImGui::BeginMenu("File")) {
-        if (ImGui::MenuItem("New", "Cmd+N"))
+    if (ImGui::BeginMenu(ph(phosphor::PH_FILE, "File"))) {
+        if (ImGui::MenuItem(ph(phosphor::PH_FILE_PLUS, "New"), "Cmd+N"))
             check_unsaved_then(pending_action::new_graph);
-        if (ImGui::MenuItem("Open...", "Cmd+O"))
+        if (ImGui::MenuItem(ph(phosphor::PH_FOLDER_OPEN, "Open..."), "Cmd+O"))
             check_unsaved_then(pending_action::open_graph);
-        if (ImGui::BeginMenu("Open Recent", !m_recent_files.empty())) {
+        if (ImGui::BeginMenu(ph(phosphor::PH_CLOCK, "Open Recent"), !m_recent_files.empty())) {
             for (const auto& recent : m_recent_files) {
                 std::filesystem::path p(recent);
                 if (ImGui::MenuItem(p.filename().string().c_str()))
@@ -581,24 +600,24 @@ void editor::draw_menu_bar() {
             ImGui::EndMenu();
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Save", "Cmd+S"))
+        if (ImGui::MenuItem(ph(phosphor::PH_FLOPPY_DISK, "Save"), "Cmd+S"))
             save_graph();
-        if (ImGui::MenuItem("Save As...", "Cmd+Shift+S"))
+        if (ImGui::MenuItem(ph(phosphor::PH_FLOPPY_DISK_BACK, "Save As..."), "Cmd+Shift+S"))
             save_graph_as();
         ImGui::Separator();
-        if (ImGui::MenuItem("Quit"))
+        if (ImGui::MenuItem(ph(phosphor::PH_SIGN_OUT, "Quit")))
             request_quit();
         ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("Edit")) {
-        if (ImGui::MenuItem("Undo", "Cmd+Z", false, m_history.can_undo())) {
+    if (ImGui::BeginMenu(ph(phosphor::PH_PENCIL_SIMPLE, "Edit"))) {
+        if (ImGui::MenuItem(ph(phosphor::PH_ARROW_COUNTER_CLOCKWISE, "Undo"), "Cmd+Z", false, m_history.can_undo())) {
             m_history.undo(graph);
             m_positioned_nodes.clear();
             rebuild_links_from_graph();
             m_generator.evaluate();
         }
-        if (ImGui::MenuItem("Redo", "Cmd+Shift+Z", false, m_history.can_redo())) {
+        if (ImGui::MenuItem(ph(phosphor::PH_ARROW_CLOCKWISE, "Redo"), "Cmd+Shift+Z", false, m_history.can_redo())) {
             m_history.redo(graph);
             m_positioned_nodes.clear();
             rebuild_links_from_graph();
@@ -608,32 +627,32 @@ void editor::draw_menu_bar() {
         ed::SetCurrentEditor(m_node_editor_context);
         bool has_selection = ed::GetSelectedObjectCount() > 0;
         ed::SetCurrentEditor(nullptr);
-        if (ImGui::MenuItem("Cut", "Cmd+X", false, has_selection)) {
+        if (ImGui::MenuItem(ph(phosphor::PH_SCISSORS, "Cut"), "Cmd+X", false, has_selection)) {
             copy_selection();
             ImGui::GetIO().AddKeyEvent(ImGuiKey_Delete, true);
         }
-        if (ImGui::MenuItem("Copy", "Cmd+C", false, has_selection))
+        if (ImGui::MenuItem(ph(phosphor::PH_COPY, "Copy"), "Cmd+C", false, has_selection))
             copy_selection();
-        if (ImGui::MenuItem("Paste", "Cmd+V"))
+        if (ImGui::MenuItem(ph(phosphor::PH_CLIPBOARD, "Paste"), "Cmd+V"))
             paste_clipboard();
         ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("Windows")) {
-        if (ImGui::MenuItem("Details", nullptr, m_show_details_panel))
+    if (ImGui::BeginMenu(ph(phosphor::PH_APP_WINDOW, "Windows"))) {
+        if (ImGui::MenuItem(ph(phosphor::PH_SIDEBAR_SIMPLE, "Details"), nullptr, m_show_details_panel))
             m_show_details_panel = !m_show_details_panel;
-        if (ImGui::MenuItem("History", nullptr, m_show_history_panel)) {
+        if (ImGui::MenuItem(ph(phosphor::PH_CLOCK_COUNTER_CLOCKWISE, "History"), nullptr, m_show_history_panel)) {
             m_show_history_panel = !m_show_history_panel;
             save_preferences();
         }
-        if (ImGui::MenuItem("Node Editor Style", nullptr, m_show_node_editor_style_window))
+        if (ImGui::MenuItem(ph(phosphor::PH_PALETTE, "Node Editor Style"), nullptr, m_show_node_editor_style_window))
             m_show_node_editor_style_window = !m_show_node_editor_style_window;
-        if (ImGui::MenuItem("Status Bar", nullptr, m_show_status_bar))
+        if (ImGui::MenuItem(ph(phosphor::PH_ROWS, "Status Bar"), nullptr, m_show_status_bar))
             m_show_status_bar = !m_show_status_bar;
-        if (ImGui::MenuItem("ImGui Demo", nullptr, m_show_demo_window))
+        if (ImGui::MenuItem(ph(phosphor::PH_FLASK, "ImGui Demo"), nullptr, m_show_demo_window))
             m_show_demo_window = !m_show_demo_window;
         ImGui::Separator();
-        if (ImGui::MenuItem("Reset UI Layout")) {
+        if (ImGui::MenuItem(ph(phosphor::PH_LAYOUT, "Reset UI Layout"))) {
             std::filesystem::remove(m_pref_dir + "imgui.ini");
             ImGui::LoadIniSettingsFromMemory("", 0);
             m_dockspace_layout_built = false;
@@ -641,8 +660,8 @@ void editor::draw_menu_bar() {
         ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("Help")) {
-        ImGui::MenuItem("About Level Synth");
+    if (ImGui::BeginMenu(ph(phosphor::PH_QUESTION, "Help"))) {
+        ImGui::MenuItem(ph(phosphor::PH_INFO, "About Level Synth"));
         ImGui::EndMenu();
     }
 
@@ -877,10 +896,10 @@ void editor::commit_edit() {
 void editor::draw_history_panel() {
     if (!m_show_history_panel) return;
 
-    ImGui::SetNextWindowSize(ImVec2(280, 360), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(280 * m_ui_scale, 360 * m_ui_scale), ImGuiCond_FirstUseEver);
     ImGuiWindow* history_win = ImGui::FindWindowByName("History");
     bool* history_open = (history_win && history_win->DockNode != nullptr) ? nullptr : &m_show_history_panel;
-    if (!ImGui::Begin("History", history_open)) {
+    if (!ImGui::Begin(ph_win(phosphor::PH_CLOCK_COUNTER_CLOCKWISE, "History"), history_open)) {
         ImGui::End();
         return;
     }
@@ -1035,7 +1054,7 @@ void editor::draw_unsaved_modal() {
         ImGui::Text("Save changes to \"%s\"?", filename.c_str());
         ImGui::Spacing();
 
-        if (ImGui::Button("Save", ImVec2(110, 0))) {
+        if (ImGui::Button("Save", ImVec2(110 * m_ui_scale, 0))) {
             ImGui::CloseCurrentPopup();
             if (save_graph())
                 execute_pending_action();
@@ -1043,12 +1062,12 @@ void editor::draw_unsaved_modal() {
                 m_pending_action = pending_action::none; // file dialog was cancelled
         }
         ImGui::SameLine();
-        if (ImGui::Button("Don't Save", ImVec2(110, 0))) {
+        if (ImGui::Button("Don't Save", ImVec2(110 * m_ui_scale, 0))) {
             ImGui::CloseCurrentPopup();
             execute_pending_action();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(110, 0))) {
+        if (ImGui::Button("Cancel", ImVec2(110 * m_ui_scale, 0))) {
             ImGui::CloseCurrentPopup();
             m_pending_action = pending_action::none;
             m_pending_path.clear();
@@ -1058,21 +1077,22 @@ void editor::draw_unsaved_modal() {
 }
 
 void editor::set_node_editor_style() {
+    const float s = m_ui_scale;
     ed::Style& edStyle = ed::GetStyle();
-    edStyle.NodePadding              = ImVec4(8, 8, 8, 8);
-    edStyle.NodeRounding             = 12.0f;
-    edStyle.HoveredNodeBorderWidth   = 3.0f;
+    edStyle.NodePadding              = ImVec4(8 * s, 8 * s, 8 * s, 8 * s);
+    edStyle.NodeRounding             = 12.0f * s;
+    edStyle.HoveredNodeBorderWidth   = 3.0f * s;
     edStyle.HoverNodeBorderOffset    = 0.0f;
-    edStyle.SelectedNodeBorderWidth  = 4.0f;
+    edStyle.SelectedNodeBorderWidth  = 4.0f * s;
     edStyle.SelectedNodeBorderOffset = 0.0f;
-    edStyle.PinRounding              = 4.0f;
+    edStyle.PinRounding              = 4.0f * s;
     edStyle.PinBorderWidth           = 0.0f;
-    edStyle.LinkStrength             = 100.0f;
+    edStyle.LinkStrength             = 100.0f * s;
     edStyle.SourceDirection          = ImVec2(1.0f, 0.0f);
     edStyle.TargetDirection          = ImVec2(-1.0f, 0.0f);
     edStyle.ScrollDuration           = 0.35f;
-    edStyle.FlowMarkerDistance       = 30.0f;
-    edStyle.FlowSpeed                = 150.0f;
+    edStyle.FlowMarkerDistance       = 30.0f * s;
+    edStyle.FlowSpeed                = 150.0f * s;
     edStyle.FlowDuration             = 2.0f;
     edStyle.PivotAlignment           = ImVec2(0.5f, 0.5f);
     edStyle.PivotSize                = ImVec2(0.0f, 0.0f);
@@ -1081,8 +1101,8 @@ void editor::set_node_editor_style() {
     edStyle.PinRadius                = 0.0f;
     edStyle.PinArrowSize             = 0.0f;
     edStyle.PinArrowWidth            = 0.0f;
-    edStyle.GroupRounding            = 6.0f;
-    edStyle.GroupBorderWidth         = 1.0f;
+    edStyle.GroupRounding            = 6.0f * s;
+    edStyle.GroupBorderWidth         = 1.0f * s;
     edStyle.HighlightConnectedLinks  = 0.0f;
     edStyle.SnapLinkToPinDir         = 0.0f;
 }
@@ -1093,6 +1113,7 @@ void editor::apply_theme() {
         set_dark_theme();
     else
         set_light_theme();
+    ImGui::GetStyle().ScaleAllSizes(m_ui_scale);
     ed::SetCurrentEditor(nullptr);
 }
 
@@ -1309,8 +1330,8 @@ void editor::draw_details_panel() {
     int node_count = ed::GetSelectedNodes(selected.data(), total);
     ed::SetCurrentEditor(nullptr);
 
-    const float panel_width = 220.0f;
-    const float margin = 12.0f;
+    const float panel_width = 220.0f * m_ui_scale;
+    const float margin = 12.0f * m_ui_scale;
     // ImVec2 panel_pos(ImGui::GetIO().DisplaySize.x - panel_width - margin, margin);
 
     // ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
@@ -1320,9 +1341,8 @@ void editor::draw_details_panel() {
 
     ImGuiWindow* details_win = ImGui::FindWindowByName("Details");
     bool* details_open = (details_win && details_win->DockNode != nullptr) ? nullptr : &m_show_details_panel;
-    ImGui::Begin("Details", details_open);
+    ImGui::Begin(ph_win(phosphor::PH_SIDEBAR_SIMPLE, "Details"), details_open);
 
-    ImGui::TextUnformatted("Details");
     ImGui::Separator();
 
     if (node_count == 1) {
@@ -1392,8 +1412,8 @@ void editor::draw_status_bar() {
 }
 
 void editor::draw_node_editor_style_editor() {
-    ImGui::SetNextWindowSize(ImVec2(360, 480), ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin("Node Editor Style", &m_show_node_editor_style_window)) {
+    ImGui::SetNextWindowSize(ImVec2(360 * m_ui_scale, 480 * m_ui_scale), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin(ph_win(phosphor::PH_PALETTE, "Node Editor Style"), &m_show_node_editor_style_window)) {
         ImGui::End();
         return;
     }

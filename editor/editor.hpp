@@ -18,7 +18,7 @@ public:
     editor() = default;
     ~editor();
 
-    void init(const std::string& pref_dir);
+    void init(const std::string& pref_dir, float ui_scale);
     void draw();
 
     /// Returns the string that should appear in the OS window title bar.
@@ -77,6 +77,8 @@ private:
     void commit_edit();
 
     void draw_history_panel();
+
+    float m_ui_scale = 1.0f;
 
     ax::NodeEditor::EditorContext* m_node_editor_context = nullptr;
     ls::generator m_generator;

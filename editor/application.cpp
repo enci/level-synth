@@ -49,7 +49,7 @@ application::application(const std::string& title, int width, int height)
     init_sdl();
     init_imgui();
     m_editor = std::make_unique<editor>();
-    m_editor->init(m_pref_dir);
+    m_editor->init(m_pref_dir, m_ui_scale);
 }
 
 application::~application() {
@@ -103,7 +103,10 @@ void application::init_imgui() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard
+                    | ImGuiConfigFlags_DockingEnable
+                    | ImGuiConfigFlags_DpiEnableScaleFonts;     // auto-scale font rasterization
+    io.ConfigDpiScaleFonts = true;                              // auto-scale fonts per viewport DPI
 
     m_imgui_ini_path = m_pref_dir + "imgui.ini";
     io.IniFilename = m_imgui_ini_path.c_str();
@@ -118,16 +121,13 @@ void application::init_imgui() {
     constexpr float k_font_size = 14.0f;
     {
         ImFontConfig config;
-        config.OversampleH = 8;
-        config.OversampleV = 8;
         io.Fonts->AddFontFromFileTTF("../resources/Roboto-SemiBold.ttf", k_font_size, &config);
     }
 
     {
         ImFontConfig icon_config;
-        icon_config.MergeMode = true;
-        icon_config.OversampleH = 8;
-        icon_config.OversampleV = 8;
+        icon_config.MergeMode    = true;
+        icon_config.GlyphOffset.y = 2.0f;  // align icon baseline with text
         static const ImWchar phosphor_ranges[] = {
             (ImWchar)phosphor::PH_RANGE_BEGIN, (ImWchar)phosphor::PH_RANGE_END, 0
         };
