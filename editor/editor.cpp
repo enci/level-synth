@@ -201,6 +201,9 @@ void editor::draw() {
 
     draw_history_panel();
     draw_unsaved_modal();
+
+
+    tag_panel.draw(m_generator.graph().tags());
 }
 
 ed::NodeId editor::make_node_id(int node_id) {

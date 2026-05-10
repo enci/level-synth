@@ -171,6 +171,7 @@ set(EDITOR_SOURCES
         ${EDITOR_DIR}/main.cpp
         ${EDITOR_DIR}/application.cpp
         ${EDITOR_DIR}/editor.cpp
+        editor/tag_panel.cpp
 )
 
 if(APPLE)
@@ -189,6 +190,7 @@ set(EDITOR_HEADERS
         ${EDITOR_DIR}/platform_titlebar.hpp
         library/level_synth/node.hpp
         library/level_synth/eval_context.hpp
+        editor/tag_panel.hpp
 )
 
 add_executable(level_synth_editor

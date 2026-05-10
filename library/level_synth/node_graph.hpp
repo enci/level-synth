@@ -1,12 +1,14 @@
 #pragma once
 
-#include <vector>
-#include <memory>
-#include <unordered_map>
-
 #include "node.hpp"
 #include "pin.hpp"
+#include "tag_registry.hpp"
+
 #include <nlohmann/json.hpp>
+
+#include <memory>
+#include <unordered_map>
+#include <vector>
 
 namespace ls {
 
@@ -48,6 +50,9 @@ public:
     /// Get all the wires (used for the ui)
     const std::vector<wire>& wires() const;
 
+    /// GetThe tags registry
+    tag_registry& tags() { return m_tags; }
+
     /// Save as json
     std::string save() const;
 
@@ -66,6 +71,7 @@ public:
 
 private:
     friend class eval_engine;
+    tag_registry m_tags;
 
     std::unordered_map<int, std::unique_ptr<node>> m_nodes;
     std::vector<wire> m_wires;

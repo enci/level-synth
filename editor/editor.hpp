@@ -2,8 +2,6 @@
 
 #include <imgui.h>
 #include <imgui_node_editor.h>
-#include "nodes/node_colors.hpp"
-#include "command_history.hpp"
 #include <level_synth/generator.hpp>
 #include <level_synth/node.hpp>
 #include <level_synth/pin.hpp>
@@ -12,6 +10,10 @@
 #include <unordered_set>
 #include <string>
 #include <vector>
+
+#include "tag_panel.hpp"
+#include "nodes/node_colors.hpp"
+#include "command_history.hpp"
 
 class editor {
 public:
@@ -83,6 +85,7 @@ private:
     ax::NodeEditor::EditorContext* m_node_editor_context = nullptr;
     ls::generator m_generator;
     command_history m_history;
+    ls::tag_panel tag_panel;
 
     struct wire_visual {
         int from_node;

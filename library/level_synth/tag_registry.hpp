@@ -3,22 +3,12 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #include "tag.hpp"
 
 namespace ls {
 
-// The registry owns the canonical list of declared symbolic tags.
-// - Identifiers are dotted paths: "Level.Wall.Damaged" (1-3 segments).
-// - Each segment hashes to a 21-bit ID; the three IDs form the tag's bits.
-// - A second map detects hash collisions between distinct segment strings;
-//   collisions are rejected at insertion time.
-//
-// Numeric tags are NOT registered. They carry their value directly in the
-// bit pattern and are always considered valid.
-//
-// Parsing string -> tag is on-demand (no cached forward map). The reverse
-// lookup tag -> string uses the m_tags map.
 class tag_registry {
 public:
     // Add a symbolic tag identifier. Returns false if:
@@ -31,6 +21,11 @@ public:
 
     // Remove a previously registered identifier. No-op if not present.
     void remove(std::string_view identifier);
+
+    // Rename an existing identifier to a new one.
+    // Migrates any stored color. Returns false if old_id is not found,
+    // new_id already exists, or new_id fails structural validation.
+    bool rename(std::string_view old_id, std::string_view new_id);
 
     // Parse an identifier into a tag by hashing its segments. Does NOT
     // require the identifier to be registered. Returns nullopt only on
@@ -45,11 +40,21 @@ public:
     // Returns empty view if the tag is numeric or not registered.
     std::string_view identifier(const tag& t) const;
 
+    // Returns every registered identifier string, sorted alphabetically.
+    std::vector<std::string> all_identifiers() const;
+
     // A tag is valid if:
     //   - it is numeric (any 63-bit value), or
     //   - it is symbolic and registered in this registry.
     // The all-zero tag (default-constructed) is NOT valid; it's a sentinel.
     bool valid(const tag& t) const;
+
+    // Per-tag display color, stored as ImU32 (packed ABGR, same as IM_COL32).
+    // Purely display metadata — does not affect tag matching.
+    // Missing color = inherit from parent level (resolved by the UI layer).
+    void                    set_color(std::string_view identifier, uint32_t color);
+    std::optional<uint32_t> get_color(std::string_view identifier) const;
+    void                    clear_color(std::string_view identifier);
 
 private:
     static uint32_t hash_segment(std::string_view segment) noexcept;
@@ -58,8 +63,10 @@ private:
     std::unordered_map<uint64_t, std::string> m_tags;
 
     // Collision detection: segment hash -> canonical segment string.
-    // Populated as segments are seen during add().
     std::unordered_map<uint32_t, std::string> m_segments;
+
+    // Display colors: identifier string -> packed ABGR color.
+    std::unordered_map<std::string, uint32_t> m_colors;
 };
 
-}
+} // namespace ls
